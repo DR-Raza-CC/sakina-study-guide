@@ -90,7 +90,7 @@
   }
   function settings() {
     var s = S.prog.settings || {};
-    return { newPerDay: s.newPerDay || 3, testLen: s.testLen || 10 };
+    return { newPerDay: s.newPerDay || 3, testLen: s.testLen || 10, startWeek: s.startWeek || "" };
   }
   function dayRec(d) { var r = S.prog.days[d || today()]; if (!r) { r = S.prog.days[d || today()] = {}; } return r; }
 
@@ -154,7 +154,10 @@
       if (!S.prog.words[k]) q.push(k);
     });
     var schoolNew = q.length;
-    ORDER.forEach(function (o) {
+    // start from the chosen week, then loop back to the earlier weeks
+    var start = 0, sw = settings().startWeek;
+    if (sw) { var idx = ORDER.findIndex(function (o) { return o.unit === sw; }); if (idx > 0) start = idx; }
+    ORDER.slice(start).concat(ORDER.slice(0, start)).forEach(function (o) {
       var k = wordKey(o.word);
       if (!S.prog.words[k] && q.indexOf(k) < 0) q.push(k);
     });
@@ -955,6 +958,9 @@
       '<div class="card"><h3>⚙️ Daily test</h3><div class="row"><div style="flex:1"><label>New words a day</label><select id="npd">' +
       [1, 2, 3, 4, 5, 6].map(function (n) { return "<option " + ((cs.newPerDay || 3) === n ? "selected" : "") + ">" + n + "</option>"; }).join("") + '</select></div><div style="flex:1"><label>Words per test</label><select id="tl">' +
       [6, 8, 10, 12, 15, 20].map(function (n) { return "<option " + ((cs.testLen || 10) === n ? "selected" : "") + ">" + n + "</option>"; }).join("") + "</select></div></div>" +
+      '<label>Start new words from</label><select id="sw"><option value="">Autumn 1 · Week 1 (the beginning)</option>' +
+      window.SPELLING_WEEKS.map(function (wk) { return '<option value="' + wk.id + '" ' + (cs.startWeek === wk.id ? "selected" : "") + ">" + esc(wk.term + " · Week " + wk.week + ": " + wk.title) + "</option>"; }).join("") +
+      '</select><p class="muted" style="margin-top:6px">Earlier weeks are still taught afterwards.</p>' +
       '<div style="height:10px"></div><button class="btn block ghost" id="saveSet">Save</button></div>' +
       '<div class="card"><h3>📖 Book quizzes</h3>' + (p.books.length ? "<table><tr><th>Date</th><th>Book</th><th>Score</th></tr>" + p.books.slice(-10).reverse().map(function (b) { return "<tr><td>" + niceDate(b.date) + "</td><td>" + esc(b.title) + "</td><td>" + b.score + "/" + b.total + "</td></tr>"; }).join("") + "</table>" : '<p class="muted">No book quizzes yet.</p>') + "</div>" +
       '<div class="card"><h3>🔢 Number families</h3><table><tr><th></th><th>Level</th><th>Recent</th></tr>' + mathRow("add", "➕➖") + mathRow("mult", "✖️➗") + "</table></div>" +
@@ -970,7 +976,7 @@
       }).filter(function (x) { return x.word; });
       put({ school: list }, "School spellings saved");
     });
-    on("#saveSet", "click", function () { put({ settings: { newPerDay: +$("#npd").value, testLen: +$("#tl").value } }, "Saved"); });
+    on("#saveSet", "click", function () { put({ settings: { newPerDay: +$("#npd").value, testLen: +$("#tl").value, startWeek: $("#sw").value } }, "Saved"); });
     on("#rename", "click", function () { var n = prompt("New name", c.name); if (n) put({ name: n }, "Renamed"); });
     on("#pin", "click", function () { var n = prompt("New PIN for " + c.name + " (4–8 numbers)"); if (n) put({ pin: n }, "PIN changed"); });
     on("#reset", "click", function () { if (confirm("Reset all of " + c.name + "'s progress? This can't be undone.")) put({ resetProgress: true }, "Progress reset"); });

@@ -14,8 +14,9 @@ Hosted free on Cloudflare Pages. Progress is stored in Cloudflare KV.
   ✖️➗ levels: 2/5/10, 3, 4, 8 times tables, then all Year 3 tables. Two scores of 9+ unlock the next level.
 - **Parent dashboard** — streak, 14-day calendar, mastered words, missed words, book quiz and maths scores, settings.
 
-Word bank: 245 words from the Year 3/4 spelling rules and statutory word list that Heathland's
-Spelling Progression Map follows, each with its own sentence. Edit `data.js` to change them.
+Word bank: the "Year 3 Spelling tests – Word Lists" sheet, week by week from Autumn 1 to Summer 2
+(about 280 words, each with its own sentence). A parent can choose which week to start from.
+Edit `data.js` to change them.
 
 ## Files
 - index.html, styles.css, app.js — the app

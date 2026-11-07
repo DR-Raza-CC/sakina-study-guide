@@ -12,6 +12,7 @@ Hosted free on Cloudflare Pages. Progress is stored in Cloudflare KV.
 - **Number families** — explained with a family triangle, a bar model and dot arrays, then tested.
   ➕➖ levels: bonds to 10, bonds to 20, adding tens, tens and ones, two-digit numbers.
   ✖️➗ levels: 2/5/10, 3, 4, 8 times tables, then all Year 3 tables. Two scores of 9+ unlock the next level.
+- **Homework** — each week's homework sheet becomes a set of colourful missions with stars (spelling, maths, English, geography, talk time). Add new weeks to `homework.js`.
 - **Parent dashboard** — streak, 14-day calendar, mastered words, missed words, book quiz and maths scores, settings.
 
 Word bank: the "Year 3 Spelling tests – Word Lists" sheet, week by week from Autumn 1 to Summer 2
@@ -21,6 +22,8 @@ Edit `data.js` to change them.
 ## Files
 - index.html, styles.css, app.js — the app
 - data.js — spelling words, rules and sentences
+- homework.js — weekly homework missions
+- ukmap.js — UK map outline for the geography games
 - functions/api/[[path]].js — the server: sign-in, saving progress, book quiz
 - manifest.webmanifest, icon-192.png, icon-512.png, apple-touch-icon.png — install as a phone app
 - _headers — makes sure updates show straight away

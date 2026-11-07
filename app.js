@@ -132,16 +132,30 @@
 
   // ---------------- spelling engine ----------------
   function wordKey(w) { return String(w).trim().toLowerCase(); }
+  function schoolList() {
+    var list = (S.prog.school || []).slice();
+    activeHomework().forEach(function (hw) {
+      hw.missions.forEach(function (m) {
+        if (m.type !== "spelling") return;
+        m.words.forEach(function (w) { list.push({ word: w[0], sentence: w[1], unit: hw.id + ":" + m.id }); });
+      });
+    });
+    return list;
+  }
   function schoolMap() {
     var m = {};
-    (S.prog.school || []).forEach(function (s) { m[wordKey(s.word)] = s; });
+    schoolList().forEach(function (s) { var k = wordKey(s.word); if (!m[k]) m[k] = s; });
     return m;
+  }
+  function activeHomework() {
+    var t = today();
+    return (window.HOMEWORK || []).filter(function (hw) { return t <= addDays(hw.due, 3); });
   }
   function wordInfo(key) {
     var sm = schoolMap();
     var o = ORDER_MAP[key];
     if (sm[key]) {
-      return { word: sm[key].word, sentence: sm[key].sentence || (o && o.sentence) || "", unit: "school" };
+      return { word: sm[key].word, sentence: sm[key].sentence || (o && o.sentence) || "", unit: sm[key].unit || "school" };
     }
     if (o) return o;
     var e = S.prog.words[key];
@@ -149,9 +163,9 @@
   }
   function newWordQueue() {
     var q = [];
-    (S.prog.school || []).forEach(function (s) {
+    schoolList().forEach(function (s) {
       var k = wordKey(s.word);
-      if (!S.prog.words[k]) q.push(k);
+      if (!S.prog.words[k] && q.indexOf(k) < 0) q.push(k);
     });
     var schoolNew = q.length;
     // start from the chosen week, then loop back to the earlier weeks
@@ -373,6 +387,7 @@
       '<div class="stats"><div class="stat"><div class="big">🔥 ' + st + '</div><div class="lbl">day streak' + (S.prog.best > st ? " · best " + S.prog.best : "") + '</div></div>' +
       '<div class="stat"><div class="big">⭐ ' + (S.prog.stars || 0) + '</div><div class="lbl">stars</div></div></div>' +
       '<div class="card" style="margin-bottom:16px"><h3>This week</h3><div class="week">' + week + "</div></div>" +
+      homeworkTiles() +
       '<button class="tile" id="spell"><div class="emoji bg-teal">✏️</div><div><div class="t">Today\'s spellings</div><div class="s">' +
       (done ? "Done today! Come back tomorrow." : "Keep your streak going!") + (school ? " · " + school + " school words" : "") + "</div></div>" +
       (done ? '<span class="badge">✓ Done</span>' : "") + "</button>" +
@@ -385,6 +400,7 @@
     on("#tricky", "click", function () { go("trickyStart"); });
     on("#book", "click", function () { go("book"); });
     on("#nums", "click", function () { go("numbers"); });
+    $$("[data-hw]").forEach(function (b) { b.addEventListener("click", function () { go("hwHub", b.getAttribute("data-hw")); }); });
   };
   function greeting() {
     var h = new Date().getHours();
@@ -429,7 +445,7 @@
 
   function startSession(plan) {
     SP = { mode: plan.mode, news: plan.news.slice(), learnIndex: 0, queue: plan.items.slice(), total: plan.items.length,
-           pos: 0, score: 0, firstTry: {}, retries: {}, wrongWords: [], answered: 0, lastUnit: null, tricky: plan.tricky };
+           pos: 0, score: 0, firstTry: {}, retries: {}, wrongWords: [], answered: 0, lastUnit: null, tricky: plan.tricky, hw: plan.hw };
     if (SP.news.length) go("learn"); else go("test");
   }
 
@@ -453,7 +469,7 @@
           ? '<button class="btn block" id="cover">Cover it 🙈</button>'
           : '<input class="spellinput" id="inp" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type it here"><div id="fb"></div><div style="height:12px"></div><button class="btn block" id="check">Check ✓</button>') +
         "</div>";
-      wireBack(function () { go("home"); });
+      wireBack(function () { if (SP.hw) go("hwHub", SP.hw.hwId); else go("home"); });
       on("#say", "click", function () { speakWord(item); });
       if (stage === "look") {
         on("#cover", "click", function () { stage = "write"; render(); setTimeout(function () { var i = $("#inp"); if (i) i.focus(); }, 50); });
@@ -494,14 +510,14 @@
     var item = wordInfo(key);
     var isRetry = SP.retries[key] > 0;
     var done = Object.keys(SP.firstTry).length;
-    $app.innerHTML = topbar((SP.mode === "daily" ? "Spelling test" : "Practice") + " · " + Math.min(done + 1, SP.total) + " of " + SP.total, true) +
+    $app.innerHTML = topbar((SP.mode === "daily" ? "Spelling test" : SP.hw ? "Grown-up test" : "Practice") + " · " + Math.min(done + 1, SP.total) + " of " + SP.total, true) +
       '<div class="progressbar"><div style="width:' + Math.round(done / SP.total * 100) + '%"></div></div>' +
       '<div class="card center">' + (isRetry ? '<p class="muted">Let\'s try this one again 💪</p>' : "") +
       '<button class="speak" id="say" aria-label="Hear the word">🔊</button>' +
       (item.sentence ? '<p class="sentence">' + blankSentence(item.sentence, item.word) + "</p>" : '<p class="sentence">Spell the word you hear.</p>') +
       '<input class="spellinput" id="inp" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type the word">' +
       '<div id="fb"></div><div style="height:12px"></div><button class="btn block" id="check">Check ✓</button></div>';
-    wireBack(function () { if (confirm("Stop the test? Your answers so far are saved.")) { save(true); go("home"); } });
+    wireBack(function () { if (confirm("Stop the test? Your answers so far are saved.")) { save(true); if (SP.hw) go("hwHub", SP.hw.hwId); else go("home"); } });
     on("#say", "click", function () { speakWord(item); setTimeout(function () { var i = $("#inp"); if (i) i.focus(); }, 50); });
     setTimeout(function () { speakWord(item); var i = $("#inp"); if (i) i.focus(); }, 300);
 
@@ -516,7 +532,7 @@
         SP.firstTry[key] = ok;
         if (ok) { SP.score++; if (SP.mode === "daily") S.prog.stars = (S.prog.stars || 0) + 1; }
         else SP.wrongWords.push(key);
-        if (SP.mode === "daily") { record(key, ok); save(); }
+        if (SP.mode === "daily" || SP.hw) { record(key, ok); save(); }
       }
       SP.queue.shift();
       if (ok) {
@@ -542,6 +558,7 @@
   };
 
   VIEWS.spellResult = function () {
+    if (SP.hw) return go("hwSpellDone");
     var total = SP.total, score = SP.score;
     var t = today();
     var newBest = false;
@@ -963,6 +980,7 @@
       '</select><p class="muted" style="margin-top:6px">Earlier weeks are still taught afterwards.</p>' +
       '<div style="height:10px"></div><button class="btn block ghost" id="saveSet">Save</button></div>' +
       '<div class="card"><h3>📖 Book quizzes</h3>' + (p.books.length ? "<table><tr><th>Date</th><th>Book</th><th>Score</th></tr>" + p.books.slice(-10).reverse().map(function (b) { return "<tr><td>" + niceDate(b.date) + "</td><td>" + esc(b.title) + "</td><td>" + b.score + "/" + b.total + "</td></tr>"; }).join("") + "</table>" : '<p class="muted">No book quizzes yet.</p>') + "</div>" +
+      parentHomework(p) +
       '<div class="card"><h3>🔢 Number families</h3><table><tr><th></th><th>Level</th><th>Recent</th></tr>' + mathRow("add", "➕➖") + mathRow("mult", "✖️➗") + "</table></div>" +
       '<div class="card"><h3>Manage</h3><div class="row wrap"><button class="btn small ghost" id="rename">Rename</button><button class="btn small ghost" id="pin">Reset PIN</button><button class="btn small ghost" id="reset">Reset progress</button><button class="btn small danger" id="del">Remove</button></div></div>';
     wireBack(function () { go("parent"); });
@@ -985,6 +1003,519 @@
       api("/parent/child/" + id, { method: "DELETE" }).then(function () { toast("Removed"); go("parent"); }).catch(function (e) { alert(e.message); });
     });
   };
+
+  // ---------------- homework ----------------
+  (window.HOMEWORK || []).forEach(function (hw) {
+    hw.missions.forEach(function (m) {
+      if (m.type === "spelling") window.UNIT_INFO[hw.id + ":" + m.id] = { title: m.title, tip: m.tip };
+    });
+  });
+  var COLOURS = { teal: ["#d9f2ee", "#2a9d8f"], sky: ["#ddeefa", "#3b8fc4"], coral: ["#ffe1d8", "#ff7a59"], plum: ["#ebe3f6", "#7b5ea7"], sun: ["#fff1c7", "#d9a61f"] };
+  function hwById(id) { return (window.HOMEWORK || []).find(function (h) { return h.id === id; }); }
+  function hwState(hwId) { S.prog.hw = S.prog.hw || {}; return S.prog.hw[hwId] || (S.prog.hw[hwId] = {}); }
+  function mState(hwId, mId) { var h = hwState(hwId); return h[mId] || (h[mId] = {}); }
+  function hwDoneCount(hw, st) { return hw.missions.filter(function (m) { return st && st[m.id] && st[m.id].done; }).length; }
+  function daysUntil(d) { return Math.round((new Date(d + "T12:00") - new Date(today() + "T12:00")) / 86400000); }
+  function dueText(due) {
+    var n = daysUntil(due);
+    return n > 1 ? "Hand in " + niceDate(due) + " · " + n + " days to go" : n === 1 ? "Hand in tomorrow!" : n === 0 ? "Hand in today!" : "Handed in " + niceDate(due);
+  }
+  function homeworkTiles() {
+    return activeHomework().map(function (hw) {
+      var st = (S.prog.hw || {})[hw.id], d = hwDoneCount(hw, st), n = hw.missions.length;
+      return '<button class="tile hwtile" data-hw="' + esc(hw.id) + '"><div class="emoji bg-plum">📝</div><div style="flex:1"><div class="t">Homework: ' + esc(hw.title) + '</div><div class="s">' + dueText(hw.due) + "</div>" +
+        '<div class="hwdots">' + hw.missions.map(function (m) { return '<span class="' + (st && st[m.id] && st[m.id].done ? "on" : "") + '">' + m.emoji + "</span>"; }).join("") + "</div></div>" +
+        (d === n ? '<span class="badge">⭐ Done</span>' : '<span class="badge" style="background:#ebe3f6;color:#5d4583">' + d + "/" + n + "</span>") + "</button>";
+    }).join("");
+  }
+
+  VIEWS.hwHub = function (hwId) {
+    var hw = hwById(hwId); if (!hw) return go("home");
+    var st = hwState(hwId), d = hwDoneCount(hw, st), n = hw.missions.length;
+    $app.innerHTML = topbar("My homework", true) +
+      '<div class="hwhead"><div class="t">📝 ' + esc(hw.title) + "</div><div>" + dueText(hw.due) + "</div>" +
+      '<div class="progressbar light"><div style="width:' + Math.round(d / n * 100) + '%"></div></div><div class="small">' + d + " of " + n + " missions done" + (d === n ? " 🎉" : "") + "</div></div>" +
+      (d === n ? '<div class="card center" style="margin-bottom:14px"><div class="celebrate">🏆</div><h2>Homework hero!</h2><p>You practised everything. Check it is all written in your book, then pack it in your bag!</p></div>' : "") +
+      hw.missions.map(function (m, i) {
+        var c = COLOURS[m.colour] || COLOURS.teal, ms = st[m.id] || {};
+        return '<button class="mission ' + (ms.done ? "done" : "") + '" data-m="' + esc(m.id) + '" style="--mc:' + c[1] + ";--mb:" + c[0] + '">' +
+          '<div class="memoji">' + m.emoji + '</div><div style="flex:1"><div class="t">' + esc(m.title) + '</div><div class="s">' + esc(m.sub) + "</div></div>" +
+          '<div class="mgo">' + (ms.done ? "⭐" : i + 1) + "</div></button>";
+      }).join("");
+    wireBack(function () { go("home"); });
+    $$("[data-m]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var m = hw.missions.find(function (x) { return x.id === b.getAttribute("data-m"); });
+        go("hw_" + m.type, { hw: hw, m: m });
+      });
+    });
+  };
+  function finishMission(ctx, data, stars) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    var first = !ms.done;
+    Object.keys(data || {}).forEach(function (k) { ms[k] = data[k]; });
+    ms.done = true; ms.date = today();
+    if (first && stars) S.prog.stars = (S.prog.stars || 0) + stars;
+    var d = dayRec(); d.hw = (d.hw || 0) + 1;
+    save(true);
+  }
+  function missionDone(ctx, html) {
+    $app.innerHTML = topbar("Mission complete!", false) +
+      '<div class="card center"><div class="celebrate">' + ctx.m.emoji + "</div>" + html +
+      (ctx.m.paper ? '<div class="paper">✍️ ' + esc(ctx.m.paper) + "</div>" : "") +
+      '<div style="height:14px"></div><button class="btn block" id="hub">Back to my homework</button></div>';
+    on("#hub", "click", function () { go("hwHub", ctx.hw.id); });
+  }
+  function mTop(ctx, extra) { return topbar(ctx.m.emoji + " " + (extra || ctx.m.title), true); }
+  function backToHub(ctx) { wireBack(function () { go("hwHub", ctx.hw.id); }); }
+  function focusSoon(sel) { setTimeout(function () { var i = $(sel); if (i) i.focus(); }, 60); }
+
+  // ----- spelling mission -----
+  VIEWS.hw_spelling = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    $app.innerHTML = mTop(ctx) +
+      '<div class="tipbox" style="margin-bottom:14px"><b>Spelling rule</b><br>' + esc(ctx.m.tip) + "</div>" +
+      '<div class="card"><div class="chips" style="justify-content:center">' + ctx.m.words.map(function (w) {
+        return '<button class="chip big say" data-w="' + esc(w[0]) + '">' + esc(w[0]).replace(/ear/, "<u>ear</u>") + "</button>";
+      }).join("") + '</div><p class="muted center" style="margin-top:8px">Tap a word to hear it</p>' +
+      '<div class="steps"><div><b>1</b> Look, write, check each word</div><div><b>2</b> Grown-up test with all 10</div></div>' +
+      (ms.done ? '<p class="center"><b>Best test score: ' + (ms.best || ms.score) + " / " + ms.total + "</b></p>" : "") +
+      '<button class="btn block" id="learn">Look, write, check 👀</button><div style="height:10px"></div>' +
+      '<button class="btn block sun" id="test">Straight to the test 🎧</button></div>';
+    backToHub(ctx);
+    $$(".say").forEach(function (b) { b.addEventListener("click", function () { speak(b.getAttribute("data-w")); }); });
+    var keys = ctx.m.words.map(function (w) { return wordKey(w[0]); });
+    var info = { hwId: ctx.hw.id, ctx: ctx };
+    on("#learn", "click", function () { startSession({ mode: "hw", news: keys, items: shuffle(keys), hw: info }); });
+    on("#test", "click", function () { startSession({ mode: "hw", news: [], items: shuffle(keys), hw: info }); });
+  };
+  VIEWS.hwSpellDone = function () {
+    var ctx = SP.hw.ctx, score = SP.score, total = SP.total;
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    finishMission(ctx, { score: score, total: total, best: Math.max(ms.best || 0, score), wrong: SP.wrongWords.map(function (k) { return wordInfo(k).word; }) }, score);
+    missionDone(ctx, '<div class="score">' + score + " / " + total + "</div><p>" +
+      (score === total ? "Perfect! You know all your 'ear' words!" : score >= 7 ? "Great spelling!" : "Good try! Practise a bit more and try again.") + "</p>" +
+      (SP.wrongWords.length ? '<div class="chips" style="justify-content:center">' + SP.wrongWords.map(function (k) { return '<span class="chip bad">' + esc(wordInfo(k).word) + "</span>"; }).join("") +
+        '</div><p class="muted">These will come back in your daily spellings.</p>' : ""));
+  };
+
+  // ----- column subtraction mission -----
+  var PLACE = ["ones", "tens", "hundreds"], PLACE1 = ["one", "ten", "hundred"];
+  VIEWS.hw_colsub = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id); ms.solved = ms.solved || {};
+    var n = ctx.m.sums.length, solved = Object.keys(ms.solved).length;
+    $app.innerHTML = mTop(ctx) +
+      '<div class="card"><h3>💡 What is exchanging?</h3><div class="exch"><div class="rod">10</div><div class="arrow">→</div><div class="ones">' + new Array(11).join("<i></i>") + "</div></div>" +
+      "<p>If the top number in a column is too small, take <b>1</b> from the column next door. <b>1 ten becomes 10 ones</b>, just like swapping a £10 note for ten £1 coins!</p>" +
+      '<p class="muted" style="margin:0">Always start with the <b>ones</b> on the right.</p></div>' +
+      '<div class="card"><h3>Pick a sum · ' + solved + " of " + n + ' done</h3><div class="sumgrid">' +
+      ctx.m.sums.map(function (s, i) {
+        var d = ms.solved[i];
+        return '<button class="sumbtn ' + (d ? "done" : "") + '" data-i="' + i + '"><small>' + (i + 1) + "</small>" + s[0] + " − " + s[1] + (d ? "<span>" + (d.stars ? "⭐" : "✓") + "</span>" : "") + "</button>";
+      }).join("") + "</div></div>";
+    backToHub(ctx);
+    $$(".sumbtn").forEach(function (b) { b.addEventListener("click", function () { go("colsubDo", { ctx: ctx, i: +b.getAttribute("data-i") }); }); });
+  };
+
+  VIEWS.colsubDo = function (o) {
+    var ctx = o.ctx, sum = ctx.m.sums[o.i];
+    function digits(n) { return [n % 10, Math.floor(n / 10) % 10, Math.floor(n / 100) % 10]; }
+    var top = digits(sum[0]), bot = digits(sum[1]);
+    var cur = top.slice(), changed = [false, false, false], ans = [null, null, null];
+    var p = 0, stage = "ask", need = null, mistakes = 0, msg = "", msgType = "";
+    var ms = mState(ctx.hw.id, ctx.m.id); ms.solved = ms.solved || {};
+
+    function nextIndex() {
+      for (var k = 1; k <= ctx.m.sums.length; k++) { var j = (o.i + k) % ctx.m.sums.length; if (!ms.solved[j]) return j; }
+      return null;
+    }
+    function render() {
+      var cols = [2, 1, 0], prompt;
+      if (stage === "ask") prompt = "Look at the <b>" + PLACE[p] + "</b>. Can we take away <b>" + bot[p] + "</b> from <b>" + cur[p] + "</b>?";
+      else if (stage === "exchange") prompt = need === p + 2
+        ? "Oh! There are <b>0 " + PLACE[p + 1] + "</b>. Tap the <b>" + PLACE[p + 2] + "</b> first, to swap 1 " + PLACE1[p + 2] + " for 10 " + PLACE[p + 1] + "."
+        : "Not enough " + PLACE[p] + "! Tap the <b>" + PLACE[p + 1] + "</b> to swap 1 " + PLACE1[p + 1] + " for 10 " + PLACE[p] + ".";
+      else if (stage === "answer") prompt = "Work out <b>" + cur[p] + " − " + bot[p] + "</b> and type it in the " + PLACE[p] + " box.";
+      else prompt = "🎉 You did it! <b>" + sum[0] + " − " + sum[1] + " = " + (sum[0] - sum[1]) + "</b>";
+      $app.innerHTML = mTop(ctx, "Sum " + (o.i + 1) + " of " + ctx.m.sums.length) +
+        '<div class="bubble">' + prompt + "</div>" +
+        (msg ? '<div class="feedback ' + msgType + '" style="margin-top:0">' + msg + "</div>" : "") +
+        '<div class="card"><div class="colgrid">' +
+        cols.map(function (c) { return '<div class="ch c' + c + '">' + "OTH"[c] + "</div>"; }).join("") +
+        cols.map(function (c) { return '<div class="cex">' + (changed[c] ? cur[c] : "") + "</div>"; }).join("") +
+        cols.map(function (c) {
+          var cls = (changed[c] ? "crossed " : "") + (stage === "exchange" && c === need ? "hot " : "") + (c === p && stage !== "done" ? "cur" : "");
+          return '<button class="ctop ' + cls + '" data-c="' + c + '" aria-label="' + PLACE[c] + " " + top[c] + '">' + top[c] + "</button>";
+        }).join("") +
+        cols.map(function (c, j) { return '<div class="cbot ' + (c === p && stage !== "done" ? "cur" : "") + '">' + (j === 0 ? '<span class="minus">−</span>' : "") + bot[c] + "</div>"; }).join("") +
+        '<div class="cline"></div>' +
+        cols.map(function (c) {
+          if (c === p && stage === "answer") return '<input class="cans" id="cans" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" aria-label="' + PLACE[c] + ' answer">';
+          return '<div class="cans ' + (ans[c] != null ? "filled" : "") + '">' + (ans[c] != null ? ans[c] : "") + "</div>";
+        }).join("") +
+        "</div>" +
+        (stage === "ask" ? '<div class="row" style="margin-top:16px"><button class="btn" id="yes" style="flex:1">Yes 👍</button><button class="btn coral" id="no" style="flex:1">No, exchange 🔄</button></div>' : "") +
+        (stage === "answer" ? '<div style="height:14px"></div><button class="btn block" id="ok">Check ✓</button>' : "") +
+        (stage === "done" ? '<div class="paper" style="margin-top:14px">✍️ Write this in your book. Cross out and write the new numbers, just like here.</div><div style="height:12px"></div><button class="btn block" id="next">' + (nextIndex() != null ? "Next sum →" : "Finish ⭐") + "</button>" : "") +
+        "</div>";
+      wire();
+    }
+    function wire() {
+      wireBack(function () { go("hw_colsub", ctx); });
+      on("#yes", "click", function () {
+        if (cur[p] >= bot[p]) { msg = ""; stage = "answer"; }
+        else { mistakes++; msg = cur[p] + " is smaller than " + bot[p] + ", so we need to exchange!"; msgType = "bad"; stage = "exchange"; need = cur[p + 1] === 0 ? p + 2 : p + 1; }
+        render(); focusSoon("#cans");
+      });
+      on("#no", "click", function () {
+        if (cur[p] < bot[p]) { msg = "Good spotting! 🔍 " + cur[p] + " is smaller than " + bot[p] + "."; msgType = "good"; stage = "exchange"; need = cur[p + 1] === 0 ? p + 2 : p + 1; }
+        else { mistakes++; msg = "We don't need to! " + cur[p] + " is not smaller than " + bot[p] + "."; msgType = "bad"; stage = "answer"; }
+        render(); focusSoon("#cans");
+      });
+      $$(".ctop").forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (stage !== "exchange") return;
+          var c = +b.getAttribute("data-c");
+          if (c !== need) { toast("Tap the " + PLACE[need] + " 👈"); return; }
+          cur[c] -= 1; cur[c - 1] += 10; changed[c] = true; changed[c - 1] = true;
+          msg = "Swapped! 1 " + PLACE1[c] + " → 10 " + PLACE[c - 1] + " ✨"; msgType = "good";
+          if (c === p + 2) need = p + 1; else stage = "answer";
+          render(); focusSoon("#cans");
+        });
+      });
+      var check = function () {
+        var v = $("#cans").value.trim(); if (v === "") return;
+        if (parseInt(v, 10) === cur[p] - bot[p]) {
+          ans[p] = cur[p] - bot[p]; msg = ""; p++;
+          if (p > 2) { stage = "done"; complete(); }
+          else stage = "ask";
+          render();
+        } else {
+          mistakes++; msg = "Not quite! Try counting back " + bot[p] + " from " + cur[p] + "."; msgType = "bad";
+          render(); focusSoon("#cans");
+        }
+      };
+      on("#ok", "click", check);
+      on("#cans", "keydown", function (e) { if (e.key === "Enter") check(); });
+      on("#next", "click", function () {
+        var nx = nextIndex();
+        if (nx != null) return go("colsubDo", { ctx: ctx, i: nx });
+        var stars = Object.keys(ms.solved).filter(function (k) { return ms.solved[k].stars; }).length;
+        finishMission(ctx, {}, 5);
+        missionDone(ctx, "<h2>All " + ctx.m.sums.length + " sums done!</h2><p>" + stars + " of them right first time ⭐</p>");
+      });
+    }
+    function complete() {
+      var stars = mistakes === 0 ? 1 : 0;
+      if (!ms.solved[o.i]) { ms.solved[o.i] = { stars: stars }; S.prog.stars = (S.prog.stars || 0) + 1 + stars; }
+      save(true);
+    }
+    render();
+  };
+
+  // ----- prediction mission -----
+  VIEWS.hw_predict = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    $app.innerHTML = mTop(ctx) +
+      '<div class="bookhead"><div class="bk">📕</div><div><div class="t">' + esc(ctx.m.book) + '</div><div class="s">by ' + esc(ctx.m.author) + "</div></div></div>" +
+      '<div class="card"><h3>🔍 Clue detective</h3><p>A <b>prediction</b> is a clever guess about what will happen. There are no wrong answers, but good detectives use clues! Tap each clue word in the title.</p>' +
+      '<div class="clues">' + ctx.m.clues.map(function (c, i) { return '<button class="clue" data-i="' + i + '"><div class="cw">' + c.emoji + " " + esc(c.word) + '</div><div class="ct">' + esc(c.text) + "</div></button>"; }).join("") + "</div></div>" +
+      (ms.sentences ? '<div class="card"><h3>My predictions</h3>' + ms.sentences.map(function (t) { return '<p class="mysent">' + esc(t) + "</p>"; }).join("") + "</div>" : "") +
+      '<button class="btn block coral" id="go">' + (ms.sentences ? "Write them again ✍️" : "Make my predictions ✍️") + "</button>";
+    backToHub(ctx);
+    $$(".clue").forEach(function (b) {
+      b.addEventListener("click", function () { b.classList.add("open"); speak(ctx.m.clues[+b.getAttribute("data-i")].text, 0.9); });
+    });
+    on("#go", "click", function () { go("predictWrite", { ctx: ctx, i: 0, out: [], bonus: 0 }); });
+  };
+  VIEWS.predictWrite = function (o) {
+    var ctx = o.ctx, s = ctx.m.sentences[o.i], askedWhy = false;
+    $app.innerHTML = mTop(ctx, "Prediction " + (o.i + 1) + " of " + ctx.m.sentences.length) +
+      '<div class="card"><p class="muted">Finish the sentence. Pick an idea, or use your own!</p>' +
+      '<div class="starter">' + esc(s.start) + " …</div>" +
+      '<div class="chips" style="margin-bottom:12px">' + s.ideas.map(function (t) { return '<button class="chip idea">' + esc(t) + "</button>"; }).join("") + "</div>" +
+      '<textarea id="end" class="sentbox" rows="3" placeholder="…type the rest of your sentence here"></textarea>' +
+      '<div id="fb"></div><div style="height:10px"></div><button class="btn block coral" id="ok">Check my sentence ✓</button></div>';
+    wireBack(function () { go("hw_predict", ctx); });
+    $$(".idea").forEach(function (b) { b.addEventListener("click", function () { $("#end").value = b.textContent; $("#end").focus(); }); });
+    function accept(full, why) {
+      o.out.push(full); if (why) o.bonus++;
+      if (o.i + 1 < ctx.m.sentences.length) return go("predictWrite", { ctx: ctx, i: o.i + 1, out: o.out, bonus: o.bonus });
+      finishMission(ctx, { sentences: o.out }, 3 + o.bonus);
+      missionDone(ctx, "<h2>Super predictions!</h2>" + o.out.map(function (t) { return '<p class="mysent">' + esc(t) + "</p>"; }).join("") +
+        (o.bonus ? '<p class="muted">+' + o.bonus + " bonus stars for explaining with <b>because</b> ⭐</p>" : ""));
+    }
+    function check() {
+      var end = $("#end").value.trim().replace(/\s+/g, " ");
+      var fb = $("#fb");
+      if (end.split(" ").filter(Boolean).length < 2) { fb.innerHTML = '<div class="feedback bad">Add a few more words to finish your sentence.</div>'; return; }
+      if (!/[.!]$/.test(end)) {
+        fb.innerHTML = '<div class="feedback bad">Nearly! Every sentence ends with a <b>full stop</b>. <br><button class="btn small" id="stop" style="margin-top:8px">Add a full stop .</button></div>';
+        on("#stop", "click", function () { $("#end").value = end + "."; fb.innerHTML = ""; });
+        return;
+      }
+      var why = /\bbecause\b/i.test(end);
+      var full = s.start + " " + end;
+      if (!why && !askedWhy) {
+        askedWhy = true;
+        fb.innerHTML = '<div class="feedback good">Great sentence! 🌟<br>Can you <b>explain why</b>? Add <b>because…</b> for a bonus star.' +
+          '<div class="row" style="margin-top:10px;justify-content:center"><button class="btn small" id="because">Add because</button><button class="btn small ghost" id="keep">Keep it</button></div></div>';
+        on("#because", "click", function () { $("#end").value = end.replace(/[.!]$/, "") + " because "; fb.innerHTML = ""; $("#end").focus(); });
+        on("#keep", "click", function () { accept(full, false); });
+        return;
+      }
+      accept(full, why);
+    }
+    on("#ok", "click", check);
+  };
+
+  // ----- compass map mission -----
+  var DIRS = [["N", "North", 0], ["NE", "North-East", 45], ["E", "East", 90], ["SE", "South-East", 135], ["S", "South", 180], ["SW", "South-West", 225], ["W", "West", 270], ["NW", "North-West", 315]];
+  var HUNT = ["N", "S", "E", "W", "NW", "NE", "SE", "SW"];
+  function dirInfo(code) { return DIRS.find(function (d) { return d[0] === code; }); }
+  function mapPlaces() {
+    var M = window.UK_MAP, out = [];
+    Object.keys(M.places).forEach(function (n) { out.push({ name: n, x: M.places[n][0], y: M.places[n][1], sea: false }); });
+    Object.keys(M.seas).forEach(function (n) { out.push({ name: n, x: M.seas[n][0], y: M.seas[n][1], sea: true }); });
+    return out;
+  }
+  function placeByName(n) { return mapPlaces().find(function (p) { return p.name === n; }); }
+  function angleBetween(a, b) { var ang = Math.atan2(b.x - a.x, a.y - b.y) * 180 / Math.PI; return (ang + 360) % 360; }
+  function angDiff(a, b) { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+  function sectorOf(ang) { return DIRS[Math.round(ang / 45) % 8]; }
+  function fitsDir(m, p, code) { return (m.accept[code] || []).indexOf(p.name) >= 0; }
+  function whereIs(m, p) {
+    var order = ["NW", "NE", "SE", "SW", "N", "E", "S", "W"];
+    for (var i = 0; i < order.length; i++) if (fitsDir(m, p, order[i])) return dirInfo(order[i])[1];
+    return null;
+  }
+  var LABELS = { Cardiff: ["end", -7], Bristol: ["start", 7], London: ["end", -4], Liverpool: ["end", 0], Glasgow: ["end", 0], York: ["start", -2], Leeds: ["start", 3] };
+  function ukMapSvg(hi) {
+    var M = window.UK_MAP; hi = hi || {};
+    var places = mapPlaces();
+    var s = '<svg class="ukmap" viewBox="0 0 ' + M.w + " " + M.h + '" role="img" aria-label="Map of the United Kingdom">' +
+      '<rect width="' + M.w + '" height="' + M.h + '" fill="#cfe9f7"/>' +
+      '<path d="' + M.fr + '" fill="#ece6da"/><path d="' + M.ie + '" fill="#ece6da" stroke="#d3c9b6" stroke-width="0.8"/>' +
+      '<path d="' + M.uk + '" fill="#bfe3b4" stroke="#6aa865" stroke-width="0.8"/>' +
+      // compass rose, bottom-left in the sea
+      '<g transform="translate(42 392)"><circle r="27" fill="#fff" opacity=".85"/>' +
+      '<path d="M0 -24 L5 -5 L0 0 L-5 -5Z" fill="#e5484d"/><path d="M0 24 L5 5 L0 0 L-5 5Z" fill="#23303b"/><path d="M24 0 L5 5 L0 0 L5 -5Z" fill="#23303b"/><path d="M-24 0 L-5 5 L0 0 L-5 -5Z" fill="#23303b"/>' +
+      '<text y="-28" text-anchor="middle" font-size="11" font-weight="800" fill="#e5484d">N</text><text y="38" text-anchor="middle" font-size="10" font-weight="700">S</text>' +
+      '<text x="33" y="4" text-anchor="middle" font-size="10" font-weight="700">E</text><text x="-33" y="4" text-anchor="middle" font-size="10" font-weight="700">W</text></g>';
+    places.forEach(function (p) {
+      var on = hi[p.name], lb = LABELS[p.name] || [p.x > 225 ? "end" : "start", 0];
+      var left = lb[0] === "end", ly = p.y + 3.5 + (lb[1] || 0);
+      if (p.sea) {
+        s += '<g class="pl sea' + (on ? " on " + on : "") + '" data-p="' + p.name + '"><rect x="' + (p.x - 48) + '" y="' + (p.y - 13) + '" width="96" height="24" rx="10" fill="transparent"/>' +
+          '<text x="' + p.x + '" y="' + (p.y + 4) + '" text-anchor="middle" class="seatxt">' + p.name + "</text></g>";
+        return;
+      }
+      s += '<g class="pl' + (on ? " on " + on : "") + '" data-p="' + p.name + '"><circle cx="' + p.x + '" cy="' + p.y + '" r="13" fill="transparent"/>' +
+        '<circle class="dot" cx="' + p.x + '" cy="' + p.y + '" r="' + (on ? 6 : 4) + '"/>' +
+        '<text x="' + (p.x + (left ? -7 : 7)) + '" y="' + ly + '" text-anchor="' + (left ? "end" : "start") + '">' + p.name + "</text></g>";
+    });
+    return s + "</svg>";
+  }
+
+  VIEWS.hw_compass = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    var answers = ms.answers || {};
+    var step = function (n, done, t, s, id) {
+      return '<button class="mission small ' + (done ? "done" : "") + '" id="' + id + '" style="--mc:#7b5ea7;--mb:#ebe3f6"><div class="memoji">' + n + '</div><div style="flex:1"><div class="t">' + t + '</div><div class="s">' + s + '</div></div><div class="mgo">' + (done ? "✓" : "›") + "</div></button>";
+    };
+    $app.innerHTML = mTop(ctx) +
+      step("🧭", ms.learnt, "1. Learn the compass", "Never Eat Shredded Wheat!", "s1") +
+      step("🎯", ms.quiz != null, "2. Compass quiz", ms.quiz != null ? "Best score: " + ms.quiz + " / 8" : "8 map questions", "s2") +
+      step("🗺️", ms.done, "3. Map hunt (your homework)", "Find a place for each direction", "s3") +
+      (Object.keys(answers).length ? '<div class="card"><h3>My answers</h3>' + answerTable(answers) + "</div>" : "");
+    backToHub(ctx);
+    on("#s1", "click", function () { go("compassLearn", ctx); });
+    on("#s2", "click", function () { go("compassQuiz", { ctx: ctx, qs: compassQuestions(), i: 0, score: 0 }); });
+    on("#s3", "click", function () { go("compassHunt", { ctx: ctx, i: 0, answers: {} }); });
+  };
+  function answerTable(a) {
+    return "<table>" + HUNT.filter(function (c) { return a[c]; }).map(function (c, i) {
+      return (i === 4 ? '<tr><td colspan="2" style="padding-top:12px"><b>Challenge</b></td></tr>' : "") + "<tr><td><b>" + dirInfo(c)[1] + ":</b></td><td>" + esc(a[c]) + "</td></tr>";
+    }).join("") + "</table>";
+  }
+  VIEWS.compassLearn = function (ctx) {
+    var rose = '<svg viewBox="-110 -110 220 220" class="rose" role="img" aria-label="Compass">' +
+      '<circle r="100" fill="#ebe3f6"/><circle r="70" fill="#fff"/>' +
+      '<path d="M0 -66 L12 -12 L0 0 L-12 -12Z" fill="#e5484d"/><path d="M0 66 L12 12 L0 0 L-12 12Z" fill="#7b5ea7"/><path d="M66 0 L12 12 L0 0 L12 -12Z" fill="#7b5ea7"/><path d="M-66 0 L-12 12 L0 0 L-12 -12Z" fill="#7b5ea7"/>' +
+      '<path d="M40 -40 L8 0 L0 0 L0 -8Z" fill="#c9b8e4"/><path d="M40 40 L8 0 L0 0 L0 8Z" fill="#c9b8e4"/><path d="M-40 40 L-8 0 L0 0 L0 8Z" fill="#c9b8e4"/><path d="M-40 -40 L-8 0 L0 0 L0 -8Z" fill="#c9b8e4"/>' +
+      DIRS.map(function (d) {
+        var r = d[0].length === 1 ? 85 : 84, a = d[2] * Math.PI / 180, x = Math.sin(a) * r, y = -Math.cos(a) * r;
+        return '<g class="rl" data-d="' + d[1] + '"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="15" fill="' + (d[0] === "N" ? "#e5484d" : "#7b5ea7") + '"/><text x="' + x.toFixed(1) + '" y="' + (y + 4.5).toFixed(1) + '" text-anchor="middle" fill="#fff" font-weight="800" font-size="' + (d[0].length === 1 ? 14 : 10) + '">' + d[0] + "</text></g>";
+      }).join("") + "</svg>";
+    $app.innerHTML = mTop(ctx, "Learn the compass") +
+      '<div class="card center">' + rose + '<p class="muted">Tap a letter to hear it</p>' +
+      '<div class="rhyme">Go clockwise from the top:<br><b>N</b>ever <b>E</b>at <b>S</b>hredded <b>W</b>heat</div></div>' +
+      '<div class="card"><h3>In-between directions</h3><p>Between North and East is <b>North-East</b>. North or South always comes first: <b>North</b>-West, <b>South</b>-East.</p>' +
+      '<p>On a map, <b>North is at the top</b>. So the top of the UK (Scotland) is in the north, and the bottom is in the south.</p>' +
+      '<button class="btn block plum" id="done">Got it! 👍</button></div>';
+    wireBack(function () { go("hw_compass", ctx); });
+    $$(".rl").forEach(function (g) { g.addEventListener("click", function () { speak(g.getAttribute("data-d")); }); });
+    on("#done", "click", function () { mState(ctx.hw.id, ctx.m.id).learnt = true; save(); go("hw_compass", ctx); });
+  };
+  function compassQuestions() {
+    var pl = mapPlaces().filter(function (p) { return !p.sea; }), qs = [];
+    var axes = [["North", function (p) { return -p.y; }], ["South", function (p) { return p.y; }], ["East", function (p) { return p.x; }], ["West", function (p) { return -p.x; }]];
+    shuffle(axes).forEach(function (ax) {
+      for (var t = 0; t < 50; t++) {
+        var opts = shuffle(pl).slice(0, 3), sc = opts.map(ax[1]).sort(function (a, b) { return b - a; });
+        if (sc[0] - sc[1] < 30) continue;
+        var best = opts.reduce(function (a, b) { return ax[1](a) > ax[1](b) ? a : b; });
+        qs.push({ q: "Which place is furthest <b>" + ax[0] + "</b>?", opts: opts.map(function (p) { return p.name; }), answer: best.name, hi: opts.map(function (p) { return p.name; }) });
+        break;
+      }
+    });
+    var tries = 0;
+    while (qs.length < 8 && tries++ < 400) {
+      var two = shuffle(pl).slice(0, 2), a = two[0], b = two[1];
+      if (Math.hypot(a.x - b.x, a.y - b.y) < 60) continue;
+      var ang = angleBetween(b, a), sec = sectorOf(ang);
+      if (angDiff(ang, sec[2]) > 12) continue;
+      if (qs.some(function (q) { return q.from === b.name || q.to === a.name; })) continue;
+      var wrong = shuffle(DIRS.filter(function (d) { return d !== sec; })).slice(0, 3).map(function (d) { return d[1]; });
+      qs.push({ q: "<b>" + a.name + "</b> is ___ of <b>" + b.name + "</b>.", opts: shuffle(wrong.concat([sec[1]])), answer: sec[1], hi: [a.name, b.name], to: a.name, from: b.name });
+    }
+    return shuffle(qs);
+  }
+  VIEWS.compassQuiz = function (o) {
+    var ctx = o.ctx, q = o.qs[o.i], hi = {};
+    q.hi.forEach(function (n) { hi[n] = "pick"; });
+    $app.innerHTML = mTop(ctx, "Compass quiz · " + (o.i + 1) + " of " + o.qs.length) +
+      '<div class="progressbar"><div style="width:' + (o.i / o.qs.length * 100) + '%"></div></div>' +
+      '<div class="mapwrap">' + ukMapSvg(hi) + "</div>" +
+      '<div class="card"><h3 style="margin-bottom:12px">' + q.q + "</h3>" +
+      q.opts.map(function (t) { return '<button class="choice">' + esc(t) + "</button>"; }).join("") + '<div id="fb"></div></div>';
+    wireBack(function () { go("hw_compass", ctx); });
+    $$(".choice").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var ok = b.textContent === q.answer;
+        if (ok) o.score++;
+        $$(".choice").forEach(function (c) { c.disabled = true; if (c.textContent === q.answer) c.classList.add("right"); else if (c === b) c.classList.add("wrong"); });
+        $("#fb").innerHTML = '<div class="feedback ' + (ok ? "good" : "bad") + '">' + (ok ? pick(["Yes! 🧭", "Spot on! ⭐", "Brilliant! 🌟"]) : "The answer is " + esc(q.answer) + ". Look at the map!") + "</div>" +
+          '<button class="btn block plum" id="next">' + (o.i + 1 < o.qs.length ? "Next →" : "See my score") + "</button>";
+        on("#next", "click", function () {
+          if (o.i + 1 < o.qs.length) return go("compassQuiz", { ctx: ctx, qs: o.qs, i: o.i + 1, score: o.score });
+          var ms = mState(ctx.hw.id, ctx.m.id);
+          if (ms.quiz == null) S.prog.stars = (S.prog.stars || 0) + o.score;
+          ms.quiz = Math.max(ms.quiz || 0, o.score); save(true);
+          $app.innerHTML = topbar("Quiz finished!", false) + '<div class="card center"><div class="celebrate">' + (o.score >= 7 ? "🧭" : "💪") + '</div><div class="score">' + o.score + ' / 8</div><p>' +
+            (o.score >= 7 ? "You're a map master!" : "Good try! Remember: North is at the top.") + '</p><button class="btn block plum" id="b">Next: the map hunt →</button></div>';
+          on("#b", "click", function () { go("compassHunt", { ctx: ctx, i: 0, answers: {} }); });
+        });
+      });
+    });
+  };
+  VIEWS.compassHunt = function (o) {
+    var ctx = o.ctx, code = HUNT[o.i], d = dirInfo(code), hi = {};
+    Object.keys(o.answers).forEach(function (c) { hi[o.answers[c]] = "got"; });
+    $app.innerHTML = mTop(ctx, "Map hunt · " + (o.i + 1) + " of " + HUNT.length) +
+      (o.i === 4 ? '<div class="tipbox" style="margin-bottom:10px">⭐ <b>Challenge time!</b> Now the in-between directions.</div>' : "") +
+      '<div class="bubble">Tap a place in the <b>' + d[1].toUpperCase() + '</b> of the map <span class="dirbadge">' + code + "</span></div>" +
+      '<div id="fb"></div><div class="mapwrap">' + ukMapSvg(hi) + "</div>";
+    wireBack(function () { go("hw_compass", ctx); });
+    speak("Tap a place in the " + d[1] + " of the map", 0.9);
+    $$(".pl").forEach(function (g) {
+      g.addEventListener("click", function () {
+        var p = placeByName(g.getAttribute("data-p"));
+        var used = Object.keys(o.answers).some(function (c) { return o.answers[c] === p.name; });
+        if (fitsDir(ctx.m, p, code) && !used) {
+          o.answers[code] = p.name;
+          g.classList.add("on", "got");
+          $("#fb").innerHTML = '<div class="feedback good">Yes! <b>' + esc(p.name) + "</b> is in the " + d[1].toLowerCase() + ". ⭐</div>";
+          $$(".pl").forEach(function (x) { x.style.pointerEvents = "none"; });
+          setTimeout(function () {
+            if (o.i + 1 < HUNT.length) return go("compassHunt", { ctx: ctx, i: o.i + 1, answers: o.answers });
+            finishMission(ctx, { answers: o.answers }, 8);
+            missionDone(ctx, "<h2>Map hunt complete!</h2><p>Copy these into your book:</p>" + answerTable(o.answers));
+          }, 1300);
+          return;
+        }
+        var w = whereIs(ctx.m, p);
+        $("#fb").innerHTML = '<div class="feedback bad">' + (used ? esc(p.name) + " is already one of your answers. Pick a different place!"
+          : !w ? esc(p.name) + " is near the middle of the map. Try one nearer the edge!"
+          : esc(p.name) + " is more in the " + w.toLowerCase() + ". Try again!") + "</div>";
+      });
+    });
+  };
+
+  // ----- discussion mission -----
+  VIEWS.hw_discuss = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    if (!ms.warm) return go("discussWarm", { ctx: ctx, i: 0, score: 0, order: shuffle(ctx.m.warmup) });
+    ms.talked = ms.talked || {}; ms.notes = ms.notes || {};
+    var n = ctx.m.questions.length, t = Object.keys(ms.talked).length;
+    var pal = ["#ffe1d8", "#ddeefa", "#d9f2ee", "#ebe3f6", "#fff1c7"];
+    $app.innerHTML = mTop(ctx) +
+      '<div class="tipbox" style="margin-bottom:14px">💬 Sit with a grown-up and talk about each question. Tap 💡 if you need ideas. Then tap <b>We talked!</b></div>' +
+      '<p class="center muted">' + t + " of " + n + " talked about</p>" +
+      ctx.m.questions.map(function (q, i) {
+        var done = !!ms.talked[i];
+        return '<div class="qcard ' + (done ? "done" : "") + '" style="background:' + pal[i % pal.length] + '"><div class="qn">' + (i + 1) + "</div><h3>" + esc(q.q) + "</h3>" +
+          '<div class="ideas" id="id' + i + '" hidden><div class="chips">' + q.ideas.map(function (x) { return '<span class="chip">' + esc(x) + "</span>"; }).join("") + "</div></div>" +
+          '<textarea class="note" data-i="' + i + '" rows="2" placeholder="My answer (if you want to write it)">' + esc(ms.notes[i] || "") + "</textarea>" +
+          '<div class="row" style="margin-top:8px"><button class="btn small ghost" data-idea="' + i + '">💡 Ideas</button><div class="spacer"></div>' +
+          '<button class="btn small ' + (done ? "" : "sun") + '" data-talk="' + i + '">' + (done ? "✓ Talked" : "We talked!") + "</button></div></div>";
+      }).join("");
+    backToHub(ctx);
+    $$("[data-idea]").forEach(function (b) { b.addEventListener("click", function () { var el = $("#id" + b.getAttribute("data-idea")); el.hidden = !el.hidden; }); });
+    $$(".note").forEach(function (t) { t.addEventListener("change", function () { ms.notes[t.getAttribute("data-i")] = t.value.trim().slice(0, 300); save(); }); });
+    $$("[data-talk]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        $$(".note").forEach(function (t) { ms.notes[t.getAttribute("data-i")] = t.value.trim().slice(0, 300); });
+        var i = b.getAttribute("data-talk");
+        if (ms.talked[i]) delete ms.talked[i]; else ms.talked[i] = 1;
+        save();
+        if (Object.keys(ms.talked).length === n && !ms.done) {
+          finishMission(ctx, {}, 5);
+          return missionDone(ctx, "<h2>Lovely talking!</h2><p>You know so much about being a good friend. 💛</p>");
+        }
+        var y = window.scrollY; go("hw_discuss", ctx); window.scrollTo(0, y);
+      });
+    });
+  };
+  VIEWS.discussWarm = function (o) {
+    var ctx = o.ctx, item = o.order[o.i];
+    $app.innerHTML = mTop(ctx, "Warm-up · " + (o.i + 1) + " of " + o.order.length) +
+      '<div class="card center"><p class="muted">Is this kind or not kind?</p><div class="scenario">' + esc(item[0]) + "</div>" +
+      '<div class="row"><button class="btn" id="k" style="flex:1">👍 Kind</button><button class="btn coral" id="nk" style="flex:1">👎 Not kind</button></div><div id="fb"></div></div>';
+    wireBack(function () { go("hwHub", ctx.hw.id); });
+    function answer(kind) {
+      var ok = kind === item[1]; if (ok) o.score++;
+      $("#fb").innerHTML = '<div class="feedback ' + (ok ? "good" : "bad") + '">' + (ok ? "That's right! " : "Hmm, think again. ") + (item[1] ? "That is a kind thing to do. 💛" : "That would make a friend feel sad.") + "</div>" +
+        '<button class="btn block sun" id="next">Next →</button>';
+      $("#k").disabled = $("#nk").disabled = true;
+      on("#next", "click", function () {
+        if (o.i + 1 < o.order.length) return go("discussWarm", { ctx: ctx, i: o.i + 1, score: o.score, order: o.order });
+        mState(ctx.hw.id, ctx.m.id).warm = o.score; save(); go("hw_discuss", ctx);
+      });
+    }
+    on("#k", "click", function () { answer(true); });
+    on("#nk", "click", function () { answer(false); });
+  };
+
+  // ----- parent view of homework -----
+  function parentHomework(p) {
+    var hws = (window.HOMEWORK || []).filter(function (hw) { return daysUntil(hw.due) >= -21; });
+    return hws.map(function (hw) {
+      var st = (p.hw || {})[hw.id] || {};
+      var rows = hw.missions.map(function (m) {
+        var ms = st[m.id] || {}, detail = "";
+        if (m.type === "spelling" && ms.total) detail = "Test " + ms.score + "/" + ms.total + (ms.wrong && ms.wrong.length ? " · missed " + ms.wrong.join(", ") : "");
+        if (m.type === "colsub") detail = Object.keys(ms.solved || {}).length + "/" + m.sums.length + " sums";
+        if (m.type === "predict" && ms.sentences) detail = ms.sentences.map(function (t) { return "“" + esc(t) + "”"; }).join("<br>");
+        if (m.type === "compass") detail = (ms.quiz != null ? "Quiz " + ms.quiz + "/8. " : "") + (ms.answers ? HUNT.map(function (c) { return c + ": " + (ms.answers[c] || "—"); }).join(", ") : "");
+        if (m.type === "discuss") detail = Object.keys(ms.talked || {}).length + "/" + m.questions.length + " talked about" +
+          Object.keys(ms.notes || {}).filter(function (k) { return ms.notes[k]; }).map(function (k) { return "<br>" + (+k + 1) + ". " + esc(ms.notes[k]); }).join("");
+        return "<tr><td>" + (ms.done ? "⭐" : "◻️") + " " + m.emoji + "</td><td><b>" + esc(m.title) + "</b>" + (detail ? '<br><span class="muted">' + detail + "</span>" : "") + "</td></tr>";
+      }).join("");
+      return '<div class="card"><h3>📝 Homework: ' + esc(hw.title) + '</h3><p class="muted">' + dueText(hw.due) + " · " + hwDoneCount(hw, st) + "/" + hw.missions.length + " missions done</p><table>" + rows + "</table></div>";
+    }).join("");
+  }
+
 
   boot();
 })();

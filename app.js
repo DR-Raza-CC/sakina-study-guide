@@ -135,7 +135,7 @@
   function schoolList() {
     var list = (S.prog.school || []).slice();
     activeHomework().forEach(function (hw) {
-      hw.missions.forEach(function (m) {
+      (hw.missions || []).forEach(function (m) {
         if (m.type !== "spelling") return;
         m.words.forEach(function (w) { list.push({ word: w[0], sentence: w[1], unit: hw.id + ":" + m.id }); });
       });
@@ -149,7 +149,7 @@
   }
   function activeHomework() {
     var t = today();
-    return (window.HOMEWORK || []).filter(function (hw) { return t <= addDays(hw.due, 3); });
+    return (window.HOMEWORK || []).filter(function (hw) { return !hw.done && t <= addDays(hw.due, 3); });
   }
   function wordInfo(key) {
     var sm = schoolMap();
@@ -157,6 +157,8 @@
     if (sm[key]) {
       return { word: sm[key].word, sentence: sm[key].sentence || (o && o.sentence) || "", unit: sm[key].unit || "school" };
     }
+    var hwW = HW_WORDS()[key];
+    if (hwW) return { word: hwW.word, sentence: hwW.sentence, unit: hwW.unit };
     if (o) return o;
     var e = S.prog.words[key];
     return { word: e ? e.w : key, sentence: e && e.sen || "", unit: "tricky" };
@@ -199,11 +201,11 @@
     var t = today();
     var info = wordInfo(key);
     var e = S.prog.words[key] || { w: info.word, b: 0, r: 0, x: 0, first: t };
-    if (info.unit === "school") { e.s = 1; if (info.sentence) e.sen = info.sentence; }
+    if (info.unit === "school" || HW_WORDS()[key]) { e.s = 1; if (info.sentence) e.sen = info.sentence; }
     if (correct) { e.b = Math.min(e.b + 1, 7); e.r++; }
     else { e.b = 0; e.x++; }
     e.last = t;
-    e.due = addDays(t, INTERVALS[e.b]);
+    e.due = addDays(t, e.s && e.b < MASTERED ? Math.min(INTERVALS[e.b], 7) : INTERVALS[e.b]);
     S.prog.words[key] = e;
   }
   function sameWord(typed, word) {
@@ -236,6 +238,7 @@
         if (me.role === "child") {
           S.child = me.child;
           S.prog = normaliseProgress(me.progress);
+          if (seedPastHomework()) save();
           S.lastSync = Date.now();
           go("home");
         } else go("parent");
@@ -464,7 +467,7 @@
         '<p class="muted" style="margin:0">' + (stage === "look" ? "👀 Look and say it" : "✍️ Now write it from memory") + "</p>" +
         '<div class="bigword ' + (stage === "write" ? "covered" : "") + '">' + esc(item.word) + "</div>" +
         '<button class="speak" id="say" aria-label="Hear the word">🔊</button>' +
-        (item.sentence ? '<p class="sentence">' + esc(item.sentence) + "</p>" : "") +
+        (item.sentence ? '<p class="sentence">' + (stage === "write" ? blankSentence(item.sentence, item.word) : esc(item.sentence)) + "</p>" : "") +
         (stage === "look"
           ? '<button class="btn block" id="cover">Cover it 🙈</button>'
           : '<input class="spellinput" id="inp" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type it here"><div id="fb"></div><div style="height:12px"></div><button class="btn block" id="check">Check ✓</button>') +
@@ -1006,15 +1009,16 @@
 
   // ---------------- homework ----------------
   (window.HOMEWORK || []).forEach(function (hw) {
-    hw.missions.forEach(function (m) {
+    (hw.missions || []).forEach(function (m) {
       if (m.type === "spelling") window.UNIT_INFO[hw.id + ":" + m.id] = { title: m.title, tip: m.tip };
     });
+    if (hw.spelling) window.UNIT_INFO[hw.id + ":spell"] = { title: "Spellings from " + niceDate(hw.due), tip: hw.spelling.tip };
   });
   var COLOURS = { teal: ["#d9f2ee", "#2a9d8f"], sky: ["#ddeefa", "#3b8fc4"], coral: ["#ffe1d8", "#ff7a59"], plum: ["#ebe3f6", "#7b5ea7"], sun: ["#fff1c7", "#d9a61f"] };
   function hwById(id) { return (window.HOMEWORK || []).find(function (h) { return h.id === id; }); }
   function hwState(hwId) { S.prog.hw = S.prog.hw || {}; return S.prog.hw[hwId] || (S.prog.hw[hwId] = {}); }
   function mState(hwId, mId) { var h = hwState(hwId); return h[mId] || (h[mId] = {}); }
-  function hwDoneCount(hw, st) { return hw.missions.filter(function (m) { return st && st[m.id] && st[m.id].done; }).length; }
+  function hwDoneCount(hw, st) { return hwMissions(hw).filter(function (m) { return st && st[m.id] && st[m.id].done; }).length; }
   function daysUntil(d) { return Math.round((new Date(d + "T12:00") - new Date(today() + "T12:00")) / 86400000); }
   function dueText(due) {
     var n = daysUntil(due);
@@ -1022,21 +1026,21 @@
   }
   function homeworkTiles() {
     return activeHomework().map(function (hw) {
-      var st = (S.prog.hw || {})[hw.id], d = hwDoneCount(hw, st), n = hw.missions.length;
+      var st = (S.prog.hw || {})[hw.id], d = hwDoneCount(hw, st), n = hwMissions(hw).length;
       return '<button class="tile hwtile" data-hw="' + esc(hw.id) + '"><div class="emoji bg-plum">📝</div><div style="flex:1"><div class="t">Homework: ' + esc(hw.title) + '</div><div class="s">' + dueText(hw.due) + "</div>" +
-        '<div class="hwdots">' + hw.missions.map(function (m) { return '<span class="' + (st && st[m.id] && st[m.id].done ? "on" : "") + '">' + m.emoji + "</span>"; }).join("") + "</div></div>" +
+        '<div class="hwdots">' + hwMissions(hw).map(function (m) { return '<span class="' + (st && st[m.id] && st[m.id].done ? "on" : "") + '">' + m.emoji + "</span>"; }).join("") + "</div></div>" +
         (d === n ? '<span class="badge">⭐ Done</span>' : '<span class="badge" style="background:#ebe3f6;color:#5d4583">' + d + "/" + n + "</span>") + "</button>";
     }).join("");
   }
 
   VIEWS.hwHub = function (hwId) {
     var hw = hwById(hwId); if (!hw) return go("home");
-    var st = hwState(hwId), d = hwDoneCount(hw, st), n = hw.missions.length;
+    var st = hwState(hwId), d = hwDoneCount(hw, st), n = hwMissions(hw).length;
     $app.innerHTML = topbar("My homework", true) +
       '<div class="hwhead"><div class="t">📝 ' + esc(hw.title) + "</div><div>" + dueText(hw.due) + "</div>" +
       '<div class="progressbar light"><div style="width:' + Math.round(d / n * 100) + '%"></div></div><div class="small">' + d + " of " + n + " missions done" + (d === n ? " 🎉" : "") + "</div></div>" +
       (d === n ? '<div class="card center" style="margin-bottom:14px"><div class="celebrate">🏆</div><h2>Homework hero!</h2><p>You practised everything. Check it is all written in your book, then pack it in your bag!</p></div>' : "") +
-      hw.missions.map(function (m, i) {
+      hwMissions(hw).map(function (m, i) {
         var c = COLOURS[m.colour] || COLOURS.teal, ms = st[m.id] || {};
         return '<button class="mission ' + (ms.done ? "done" : "") + '" data-m="' + esc(m.id) + '" style="--mc:' + c[1] + ";--mb:" + c[0] + '">' +
           '<div class="memoji">' + m.emoji + '</div><div style="flex:1"><div class="t">' + esc(m.title) + '</div><div class="s">' + esc(m.sub) + "</div></div>" +
@@ -1045,7 +1049,7 @@
     wireBack(function () { go("home"); });
     $$("[data-m]").forEach(function (b) {
       b.addEventListener("click", function () {
-        var m = hw.missions.find(function (x) { return x.id === b.getAttribute("data-m"); });
+        var m = hwMissions(hw).find(function (x) { return x.id === b.getAttribute("data-m"); });
         go("hw_" + m.type, { hw: hw, m: m });
       });
     });
@@ -1076,25 +1080,29 @@
     $app.innerHTML = mTop(ctx) +
       '<div class="tipbox" style="margin-bottom:14px"><b>Spelling rule</b><br>' + esc(ctx.m.tip) + "</div>" +
       '<div class="card"><div class="chips" style="justify-content:center">' + ctx.m.words.map(function (w) {
-        return '<button class="chip big say" data-w="' + esc(w[0]) + '">' + esc(w[0]).replace(/ear/, "<u>ear</u>") + "</button>";
+        return '<button class="chip big say" data-w="' + esc(w[0]) + '">' + (ctx.m.mark ? esc(w[0]).replace(ctx.m.mark, "<u>" + ctx.m.mark + "</u>") : esc(w[0])) + "</button>";
       }).join("") + '</div><p class="muted center" style="margin-top:8px">Tap a word to hear it</p>' +
-      '<div class="steps"><div><b>1</b> Look, write, check each word</div><div><b>2</b> Grown-up test with all 10</div></div>' +
+      '<div class="steps"><div><b>1</b> Look, write, check each word</div><div><b>2</b> Grown-up test with all ' + ctx.m.words.length +
+      (reviewWords(ctx.hw, []).length ? ", plus " + reviewWords(ctx.hw, []).length + " words from earlier weeks 🔁" : "") + "</div></div>" +
       (ms.done ? '<p class="center"><b>Best test score: ' + (ms.best || ms.score) + " / " + ms.total + "</b></p>" : "") +
       '<button class="btn block" id="learn">Look, write, check 👀</button><div style="height:10px"></div>' +
-      '<button class="btn block sun" id="test">Straight to the test 🎧</button></div>';
+      '<button class="btn block sun" id="test">Straight to the test 🎧</button>' +
+      (ctx.m.pairs ? '<div style="height:10px"></div><button class="btn block plum" id="pairs">Which one? game 🤔' + (ms.pairs != null ? " (best " + ms.pairs + ")" : "") + "</button>" : "") + "</div>";
     backToHub(ctx);
+    on("#pairs", "click", function () { go("pairGame", { ctx: ctx }); });
     $$(".say").forEach(function (b) { b.addEventListener("click", function () { speak(b.getAttribute("data-w")); }); });
     var keys = ctx.m.words.map(function (w) { return wordKey(w[0]); });
     var info = { hwId: ctx.hw.id, ctx: ctx };
-    on("#learn", "click", function () { startSession({ mode: "hw", news: keys, items: shuffle(keys), hw: info }); });
-    on("#test", "click", function () { startSession({ mode: "hw", news: [], items: shuffle(keys), hw: info }); });
+    var rev = reviewWords(ctx.hw, keys);
+    on("#learn", "click", function () { startSession({ mode: "hw", news: keys, items: shuffle(keys.concat(rev)), hw: info }); });
+    on("#test", "click", function () { startSession({ mode: "hw", news: [], items: shuffle(keys.concat(rev)), hw: info }); });
   };
   VIEWS.hwSpellDone = function () {
     var ctx = SP.hw.ctx, score = SP.score, total = SP.total;
     var ms = mState(ctx.hw.id, ctx.m.id);
     finishMission(ctx, { score: score, total: total, best: Math.max(ms.best || 0, score), wrong: SP.wrongWords.map(function (k) { return wordInfo(k).word; }) }, score);
     missionDone(ctx, '<div class="score">' + score + " / " + total + "</div><p>" +
-      (score === total ? "Perfect! You know all your 'ear' words!" : score >= 7 ? "Great spelling!" : "Good try! Practise a bit more and try again.") + "</p>" +
+      (score === total ? "Perfect! You got every word right!" : score >= 7 ? "Great spelling!" : "Good try! Practise a bit more and try again.") + "</p>" +
       (SP.wrongWords.length ? '<div class="chips" style="justify-content:center">' + SP.wrongWords.map(function (k) { return '<span class="chip bad">' + esc(wordInfo(k).word) + "</span>"; }).join("") +
         '</div><p class="muted">These will come back in your daily spellings.</p>' : ""));
   };
@@ -1497,22 +1505,651 @@
     on("#nk", "click", function () { answer(false); });
   };
 
+  // ----- homophone "which one?" game (spelling missions with pairs) -----
+  VIEWS.pairGame = function (o) {
+    var ctx = o.ctx;
+    if (!o.qs) {
+      var qs = [];
+      ctx.m.pairs.forEach(function (p) {
+        p.forEach(function (w, i) {
+          var row = ctx.m.words.find(function (x) { return x[0] === w; });
+          if (row) qs.push({ word: w, other: p[1 - i], sentence: row[1] });
+        });
+      });
+      o.qs = shuffle(qs); o.i = 0; o.score = 0;
+    }
+    var q = o.qs[o.i], hints = ctx.m.hints || {};
+    var opts = shuffle([q.word, q.other]);
+    $app.innerHTML = mTop(ctx, "Which one? · " + (o.i + 1) + " of " + o.qs.length) +
+      '<div class="progressbar"><div style="width:' + (o.i / o.qs.length * 100) + '%"></div></div>' +
+      '<div class="card center"><p class="muted">Which word fits the sentence?</p>' +
+      '<button class="speak" id="say" aria-label="Hear the sentence">🔊</button>' +
+      '<p class="sentence">' + blankSentence(q.sentence, q.word) + "</p>" +
+      '<div class="row">' + opts.map(function (w) { return '<button class="choice center pairbtn" style="flex:1;font-size:26px;font-weight:800">' + esc(w) + "</button>"; }).join("") + "</div>" +
+      '<div id="fb"></div></div>';
+    wireBack(function () { go("hw_spelling", ctx); });
+    on("#say", "click", function () { speak(q.sentence, 0.9); });
+    setTimeout(function () { speak(q.sentence, 0.9); }, 300);
+    $$(".pairbtn").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var ok = b.textContent === q.word;
+        if (ok) o.score++;
+        $$(".pairbtn").forEach(function (c) { c.disabled = true; if (c.textContent === q.word) c.classList.add("right"); else if (c === b) c.classList.add("wrong"); });
+        $("#fb").innerHTML = '<div class="feedback ' + (ok ? "good" : "bad") + '">' + (ok ? pick(["Yes! ⭐", "Spot on! 🎯", "Brilliant! 🌟"]) : "It's <b>" + esc(q.word) + "</b> here.") +
+          '<br><small style="font-weight:500"><b>' + esc(q.word) + "</b> = " + esc(hints[q.word] || "") + " · <b>" + esc(q.other) + "</b> = " + esc(hints[q.other] || "") + "</small></div>" +
+          '<button class="btn block" id="next">' + (o.i + 1 < o.qs.length ? "Next →" : "See my score") + "</button>";
+        on("#next", "click", function () {
+          if (o.i + 1 < o.qs.length) { o.i++; return go("pairGame", o); }
+          var ms = mState(ctx.hw.id, ctx.m.id);
+          if (ms.pairs == null) S.prog.stars = (S.prog.stars || 0) + o.score;
+          ms.pairs = Math.max(ms.pairs || 0, o.score); save(true);
+          $app.innerHTML = topbar("Game finished!", false) + '<div class="card center"><div class="celebrate">' + (o.score >= 8 ? "🎯" : "💪") + '</div><div class="score">' + o.score + " / " + o.qs.length + "</div><p>" +
+            (o.score >= 8 ? "You really know your sound-alike words!" : "Good try! Listen to what each sentence means.") + '</p><button class="btn block" id="b">Back to spellings</button></div>';
+          on("#b", "click", function () { go("hw_spelling", ctx); });
+        });
+      });
+    });
+  };
+
+  // ----- column addition mission -----
+  function digits3(n) { return [n % 10, Math.floor(n / 10) % 10, Math.floor(n / 100) % 10]; }
+  VIEWS.hw_coladd = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id); ms.solved = ms.solved || {};
+    var n = ctx.m.sums.length, solved = Object.keys(ms.solved).length;
+    $app.innerHTML = mTop(ctx) +
+      '<div class="card"><h3>💡 What is carrying?</h3><div class="exch"><div class="ones">' + new Array(11).join("<i></i>") + '</div><div class="arrow">→</div><div class="rod">10</div></div>' +
+      "<p>If a column adds up to <b>10 or more</b>, it's too big for one column! <b>10 ones make 1 ten</b>, so the ten moves next door. We call it <b>carrying</b>.</p>" +
+      '<p class="muted" style="margin:0">Always start with the <b>ones</b> on the right.</p></div>' +
+      '<div class="card"><h3>Pick a sum · ' + solved + " of " + n + ' done</h3><div class="sumgrid">' +
+      ctx.m.sums.map(function (s, i) {
+        var d = ms.solved[i];
+        return '<button class="sumbtn ' + (d ? "done" : "") + '" data-i="' + i + '"><small>' + (i + 1) + "</small>" + s[0] + " + " + s[1] + (d ? "<span>" + (d.stars ? "⭐" : "✓") + "</span>" : "") + "</button>";
+      }).join("") + "</div></div>";
+    backToHub(ctx);
+    $$(".sumbtn").forEach(function (b) { b.addEventListener("click", function () { go("coladdDo", { ctx: ctx, i: +b.getAttribute("data-i") }); }); });
+  };
+  VIEWS.coladdDo = function (o) {
+    var ctx = o.ctx, sum = ctx.m.sums[o.i];
+    var top = digits3(sum[0]), bot = digits3(sum[1]), carry = [0, 0, 0], ans = [null, null, null];
+    var p = 0, stage = "sum", total = null, mistakes = 0, msg = "", msgType = "";
+    var ms = mState(ctx.hw.id, ctx.m.id); ms.solved = ms.solved || {};
+    var botShown = function (c) { return (c === 2 && sum[1] < 100) || (c === 1 && sum[1] < 10) ? "" : String(bot[c]); };
+    function nextIndex() {
+      for (var k = 1; k <= ctx.m.sums.length; k++) { var j = (o.i + k) % ctx.m.sums.length; if (!ms.solved[j]) return j; }
+      return null;
+    }
+    function terms() {
+      var t = [top[p]]; if (botShown(p) !== "") t.push(bot[p]); if (carry[p]) t.push(carry[p]);
+      return t;
+    }
+    function render() {
+      var cols = [2, 1, 0], prompt;
+      if (stage === "sum") prompt = "Add the <b>" + PLACE[p] + "</b>: <b>" + terms().join(" + ") + "</b>" + (carry[p] ? '<br><small>(the 1 is the ten you carried)</small>' : "") + (terms().length === 1 ? "<br><small>Nothing to add, so just bring it down!</small>" : "");
+      else if (stage === "carry") prompt = "<b>" + total + "</b> is 10 or more! Write the <b>" + (total % 10) + "</b> in the " + PLACE[p] + " and carry <b>1</b> " + PLACE1[p + 1] + ". Tap the <b>" + PLACE[p + 1] + "</b>!";
+      else prompt = "🎉 You did it! <b>" + sum[0] + " + " + sum[1] + " = " + (sum[0] + sum[1]) + "</b>";
+      $app.innerHTML = mTop(ctx, "Sum " + (o.i + 1) + " of " + ctx.m.sums.length) +
+        '<div class="bubble">' + prompt + "</div>" +
+        (msg ? '<div class="feedback ' + msgType + '" style="margin-top:0">' + msg + "</div>" : "") +
+        '<div class="card"><div class="colgrid">' +
+        cols.map(function (c) { return '<div class="ch c' + c + '">' + "OTH"[c] + "</div>"; }).join("") +
+        cols.map(function (c) {
+          var cls = (stage === "carry" && c === p + 1 ? "hot " : "") + (c === p && stage !== "done" ? "cur" : "");
+          return '<button class="ctop ' + cls + '" data-c="' + c + '" aria-label="' + PLACE[c] + " " + top[c] + '">' + top[c] + "</button>";
+        }).join("") +
+        cols.map(function (c, j) { return '<div class="cbot ' + (c === p && stage !== "done" ? "cur" : "") + '">' + (j === 0 ? '<span class="minus">+</span>' : "") + botShown(c) + "</div>"; }).join("") +
+        '<div class="cline"></div>' +
+        cols.map(function (c) {
+          if (c === p && stage === "sum") return '<input class="cans" id="cans" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" aria-label="' + PLACE[c] + ' answer">';
+          return '<div class="cans ' + (ans[c] != null ? "filled" : "") + '">' + (ans[c] != null ? ans[c] : "") + "</div>";
+        }).join("") +
+        cols.map(function (c) { return '<div class="ccarry">' + (carry[c] ? carry[c] : "") + "</div>"; }).join("") +
+        "</div>" +
+        (stage === "sum" ? '<div style="height:14px"></div><button class="btn block" id="ok">Check ✓</button>' : "") +
+        (stage === "done" ? '<div class="paper" style="margin-top:14px">✍️ Write this in your book, with the little carried 1s under the line, just like here.</div><div style="height:12px"></div><button class="btn block" id="next">' + (nextIndex() != null ? "Next sum →" : "Finish ⭐") + "</button>" : "") +
+        "</div>";
+      wire();
+    }
+    function wire() {
+      wireBack(function () { go("hw_coladd", ctx); });
+      var check = function () {
+        var v = $("#cans").value.trim(); if (v === "") return;
+        var want = terms().reduce(function (a, b) { return a + b; }, 0);
+        if (parseInt(v, 10) !== want) {
+          mistakes++; msg = "Not quite! Count on carefully: " + terms().join(" + ") + "."; msgType = "bad";
+          render(); focusSoon("#cans"); return;
+        }
+        msg = "";
+        if (want >= 10 && p < 2) { total = want; stage = "carry"; render(); return; }
+        ans[p] = want; p++;
+        if (p > 2) { stage = "done"; complete(); } else stage = "sum";
+        render(); focusSoon("#cans");
+      };
+      on("#ok", "click", check);
+      on("#cans", "keydown", function (e) { if (e.key === "Enter") check(); });
+      $$(".ctop").forEach(function (b) {
+        b.addEventListener("click", function () {
+          if (stage !== "carry") return;
+          var c = +b.getAttribute("data-c");
+          if (c !== p + 1) { toast("Tap the " + PLACE[p + 1] + " 👈"); return; }
+          ans[p] = total % 10; carry[p + 1] = 1; p++; stage = "sum";
+          msg = "Carried! 10 " + PLACE[p - 1] + " → 1 " + PLACE1[p] + " ✨"; msgType = "good";
+          render(); focusSoon("#cans");
+        });
+      });
+      on("#next", "click", function () {
+        var nx = nextIndex();
+        if (nx != null) return go("coladdDo", { ctx: ctx, i: nx });
+        var stars = Object.keys(ms.solved).filter(function (k) { return ms.solved[k].stars; }).length;
+        finishMission(ctx, {}, 5);
+        missionDone(ctx, "<h2>All " + ctx.m.sums.length + " sums done!</h2><p>" + stars + " of them right first time ⭐</p>");
+      });
+    }
+    function complete() {
+      var stars = mistakes === 0 ? 1 : 0;
+      if (!ms.solved[o.i]) { ms.solved[o.i] = { stars: stars }; S.prog.stars = (S.prog.stars || 0) + 1 + stars; }
+      save(true);
+    }
+    render();
+    focusSoon("#cans");
+  };
+
+  // ----- character description mission -----
+  var FEAT = {
+    time: { emoji: "⏰", name: "Time adverbial", what: "Tells us <b>when</b> it happened. Put a comma after it.", eg: "Yesterday, One sunny morning, After school," },
+    noun: { emoji: "🧩", name: "Expanded noun phrase", what: "Describing words in front of the noun, to tell us more. Two describing words? Put a comma between them.", eg: "the brave, curly-haired boy" },
+    simile: { emoji: "🦊", name: "Simile", what: "Compares something to something else using <b>like</b> or <b>as … as</b>.", eg: "like a sneaky fox · as quiet as a mouse" }
+  };
+  var TIME_RE = /(^|[.!?]\s+)(yesterday|today|tomorrow|tonight|one (sunny |rainy |cold |dark |snowy |bright |windy |quiet )?(morning|day|night|afternoon|evening)|last (night|week|year|summer|winter|weekend)|after (school|lunch|dinner|that|breakfast)|before (school|bed|breakfast)|suddenly|at (midnight|night|dawn|sunset|lunchtime|first|last)|in the (morning|evening|afternoon|night)|later( that day)?|then|next|finally|meanwhile|soon|once upon a time|every (day|morning|night)|early|first|at last)\b/i;
+  var NOUN_RE = /\b(the|a|an|my|his|her|their|our|this|that)\s+[a-z-]+,\s*[a-z-]+\s+[a-z-]+/i;
+  var SIMILE_RE = /\blike (a|an|the)\b|\bas [a-z-]+ as\b/i;
+  function featureCheck(text) {
+    var t = text.trim();
+    var sentences = t.split(/(?<=[.!?])\s+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    return {
+      time: TIME_RE.test(t),
+      noun: NOUN_RE.test(t),
+      simile: SIMILE_RE.test(t),
+      caps: sentences.length > 0 && sentences.every(function (x) { return /^["'“‘]?[A-Z]/.test(x); }),
+      stops: t.length > 0 && /[.!?]["'”’]?$/.test(t),
+      three: sentences.filter(function (x) { return x.split(/\s+/).length >= 3; }).length >= 3
+    };
+  }
+  VIEWS.hw_describe = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    var ex = ctx.m.example.map(function (part) { return part[1] ? '<span class="feat-' + part[1] + '">' + esc(part[0]) + "</span>" : esc(part[0]); }).join("");
+    $app.innerHTML = mTop(ctx) +
+      '<div class="card"><h3>👀 Look at the example</h3><p class="exsent">' + ex + "</p>" +
+      ["time", "noun", "simile"].map(function (k) {
+        return '<div class="featcard feat-' + k + '-bg"><div class="ft">' + FEAT[k].emoji + " " + FEAT[k].name + '</div><div class="fw">' + FEAT[k].what + '</div><div class="fe">e.g. ' + esc(FEAT[k].eg) + "</div></div>";
+      }).join("") + "</div>" +
+      '<button class="mission small" id="s1" style="--mc:#ff7a59;--mb:#ffe1d8"><div class="memoji">🧱</div><div style="flex:1"><div class="t">1. Sentence builder</div><div class="s">' + ((ms.built || []).length ? (ms.built.length + " sentences saved") : "Build a super sentence") + '</div></div><div class="mgo">›</div></button>' +
+      '<button class="mission small ' + (ms.done ? "done" : "") + '" id="s2" style="--mc:#ff7a59;--mb:#ffe1d8"><div class="memoji">✍️</div><div style="flex:1"><div class="t">2. Write my paragraph</div><div class="s">About your favourite character</div></div><div class="mgo">' + (ms.done ? "✓" : "›") + "</div></button>" +
+      (ms.paragraph ? '<div class="card"><h3>My paragraph</h3><p class="mysent">' + esc(ms.paragraph) + "</p></div>" : "");
+    backToHub(ctx);
+    on("#s1", "click", function () { go("describeBuild", { ctx: ctx }); });
+    on("#s2", "click", function () { go("describeWrite", { ctx: ctx }); });
+  };
+  VIEWS.describeBuild = function (o) {
+    var ctx = o.ctx, B = ctx.m.builder;
+    o.pick = o.pick || { time: B.time[0], adj: [B.adj[0], B.adj[5]], who: "", action: B.action[0], simile: B.simile[0] };
+    var P = o.pick;
+    function sentence() {
+      var who = (P.who || "the little dragon").trim();
+      var m = who.match(/^(the|a|an|my|our|his|her)\s+(.*)$/i);
+      var det = m ? m[1].toLowerCase() : (/^[A-Z]/.test(who) ? "" : "the");
+      var noun = m ? m[2] : who;
+      return P.time + " " + (det ? det + " " : "") + P.adj[0] + ", " + P.adj[1] + " " + noun + " " + P.action + " " + P.simile + ".";
+    }
+    function group(key, title, list, cls) {
+      return '<div class="bgroup"><div class="bt feat-' + cls + '-bg">' + title + '</div><div class="chips">' + list.map(function (t) {
+        var on = key === "adj" ? P.adj.indexOf(t) >= 0 : P[key] === t;
+        return '<button class="chip idea pickchip ' + (on ? "on" : "") + '" data-k="' + key + '">' + esc(t) + "</button>";
+      }).join("") + "</div></div>";
+    }
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    $app.innerHTML = mTop(ctx, "Sentence builder") +
+      '<div class="card"><p class="muted" style="margin-bottom:6px">Your sentence</p><p class="exsent big" id="prev">' + esc(sentence()) + "</p>" +
+      '<div class="row"><button class="btn small ghost" id="hear">🔊 Hear it</button><button class="btn small ghost" id="mix">🔀 Surprise me</button></div></div>' +
+      '<div class="card"><label for="who" style="margin-top:0">Who is your character?</label><input id="who" value="' + esc(P.who) + '" placeholder="e.g. the little dragon, or a name">' +
+      group("time", "⏰ When? (time adverbial)", B.time, "time") +
+      group("adj", "🧩 Pick 2 describing words", B.adj, "noun") +
+      '<div class="bgroup"><div class="bt">🏃 What did they do?</div><div class="chips">' + B.action.map(function (t) { return '<button class="chip idea pickchip ' + (P.action === t ? "on" : "") + '" data-k="action">' + esc(t) + "</button>"; }).join("") + "</div></div>" +
+      group("simile", "🦊 Like what? (simile)", B.simile, "simile") +
+      '<div style="height:12px"></div><button class="btn block coral" id="keep">Save this sentence ⭐</button></div>';
+    wireBack(function () { go("hw_describe", ctx); });
+    on("#who", "input", function (e) { P.who = e.target.value; $("#prev").textContent = sentence(); });
+    on("#hear", "click", function () { speak(sentence(), 0.9); });
+    on("#mix", "click", function () {
+      var a = shuffle(B.adj);
+      o.pick = { time: pick(B.time), adj: [a[0], a[1]], who: P.who, action: pick(B.action), simile: pick(B.simile) };
+      go("describeBuild", o);
+    });
+    $$(".pickchip").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var k = b.getAttribute("data-k"), v = b.textContent;
+        if (k === "adj") { if (P.adj.indexOf(v) < 0) P.adj = [P.adj[1], v]; }
+        else P[k] = v;
+        var y = window.scrollY; go("describeBuild", o); window.scrollTo(0, y);
+      });
+    });
+    on("#keep", "click", function () {
+      ms.built = (ms.built || []).concat([sentence()]).slice(-6); save();
+      toast("Saved! Use it in your paragraph ⭐");
+    });
+  };
+  VIEWS.describeWrite = function (o) {
+    var ctx = o.ctx, ms = mState(ctx.hw.id, ctx.m.id);
+    var labels = { time: "⏰ A time adverbial (with a comma)", noun: "🧩 An expanded noun phrase (two describing words + comma)", simile: "🦊 A simile (like a… / as … as)", caps: "🔠 Capital letters to start sentences", stops: "⚫ Full stop at the end", three: "📏 At least 3 sentences" };
+    $app.innerHTML = mTop(ctx, "Write my paragraph") +
+      '<div class="card"><p>Write <b>3 to 5 sentences</b> about your favourite character. Use all three tools!</p>' +
+      ((ms.built || []).length ? '<p class="muted" style="margin-bottom:6px">Your saved sentences (tap to add):</p><div class="chips" style="margin-bottom:10px">' + ms.built.map(function (t, i) { return '<button class="chip idea usebuilt" data-i="' + i + '">' + esc(t) + "</button>"; }).join("") + "</div>" : "") +
+      '<textarea id="para" class="sentbox" rows="7" placeholder="One rainy morning, the cheeky, sparkly-eyed…">' + esc(o.draft || ms.paragraph || "") + "</textarea>" +
+      '<div class="checklist" id="chk"></div><div id="fb"></div><div style="height:10px"></div><button class="btn block coral" id="done">I\'m finished ✓</button></div>';
+    wireBack(function () { o.draft = $("#para").value; go("hw_describe", ctx); });
+    function refresh() {
+      var r = featureCheck($("#para").value);
+      $("#chk").innerHTML = Object.keys(labels).map(function (k) { return '<div class="ck ' + (r[k] ? "on" : "") + '"><span>' + (r[k] ? "✓" : "○") + "</span>" + labels[k] + "</div>"; }).join("");
+      return r;
+    }
+    on("#para", "input", function () { $("#fb").innerHTML = ""; refresh(); });
+    $$(".usebuilt").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var t = $("#para").value.trim();
+        $("#para").value = (t ? t + " " : "") + ms.built[+b.getAttribute("data-i")];
+        refresh();
+      });
+    });
+    on("#done", "click", function () {
+      var text = $("#para").value.trim().replace(/\s+/g, " ");
+      var r = refresh(), miss = [];
+      if (!r.three) miss.push("write at least 3 sentences");
+      if (!r.time) miss.push("add a time adverbial, like <b>Yesterday,</b>");
+      if (!r.noun) miss.push("add two describing words with a comma, like <b>the brave, curly-haired</b> …");
+      if (!r.simile) miss.push("add a simile, like <b>as quiet as a mouse</b>");
+      if (!r.stops) miss.push("finish with a full stop");
+      if (miss.length) { $("#fb").innerHTML = '<div class="feedback bad">Nearly there! Can you:<br>' + miss.map(function (m) { return "• " + m; }).join("<br>") + "</div>"; return; }
+      finishMission(ctx, { paragraph: text }, 5 + (r.caps ? 1 : 0));
+      missionDone(ctx, "<h2>What a description!</h2><p class='mysent'>" + esc(text) + "</p>" + (r.caps ? "" : "<p class='muted'>Tip: check every sentence starts with a capital letter when you copy it.</p>"));
+    });
+    refresh();
+  };
+
+  // ----- rock hunt mission -----
+  var ROCK_TYPE = { granite: "igneous", basalt: "igneous", pumice: "igneous", sandstone: "sedimentary", limestone: "sedimentary", chalk: "sedimentary", flint: "sedimentary", marble: "metamorphic", slate: "metamorphic" };
+  var ROCK_FAM = {
+    igneous: { emoji: "🌋", colour: "#ffe1d8", text: "Made when hot, runny rock (lava or magma) cools down and goes hard. Often has shiny crystals.", eg: "granite, basalt, pumice" },
+    sedimentary: { emoji: "🏖️", colour: "#fff1c7", text: "Made from tiny bits of sand, mud and shells that settle in layers and get squashed together over millions of years. Can have fossils!", eg: "sandstone, limestone, chalk, flint" },
+    metamorphic: { emoji: "🔥", colour: "#ebe3f6", text: "A rock that has been changed by lots of heat and squeezing deep underground.", eg: "marble (was limestone), slate (was mudstone)" }
+  };
+  var ROCK_OR_NOT = [
+    ["🍽️", "Marble dining table", true, "marble"], ["🪣", "Plastic bucket", false, "plastic"], ["🍳", "Granite kitchen worktop", true, "granite"],
+    ["🚪", "Wooden door", false, "wood"], ["🏠", "Slate roof tiles", true, "slate"], ["🧶", "Woolly jumper", false, "wool"],
+    ["🖍️", "Chalk for drawing", true, "chalk"], ["🥄", "Metal spoon", false, "metal"], ["🧱", "Sandstone garden wall", true, "sandstone"],
+    ["🪨", "Garden pebbles", true, "rock, often flint or granite"]
+  ];
+  VIEWS.hw_rocks = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    var step = function (n, done, t, s, id) {
+      return '<button class="mission small ' + (done ? "done" : "") + '" id="' + id + '" style="--mc:#7b5ea7;--mb:#ebe3f6"><div class="memoji">' + n + '</div><div style="flex:1"><div class="t">' + t + '</div><div class="s">' + s + '</div></div><div class="mgo">' + (done ? "✓" : "›") + "</div></button>";
+    };
+    $app.innerHTML = mTop(ctx) +
+      step("🤔", ms.sorted != null, "1. Rock or not?", ms.sorted != null ? "Best: " + ms.sorted + " / " + ROCK_OR_NOT.length : "A quick sorting game", "s1") +
+      step("🌋", ms.quiz != null, "2. Rock families", ms.quiz != null ? "Quiz: " + ms.quiz + " / 6" : "Igneous, sedimentary, metamorphic", "s2") +
+      step("🔍", ms.done, "3. My rock hunt list", (ms.list || []).length + " things found", "s3");
+    backToHub(ctx);
+    on("#s1", "click", function () { go("rockSort", { ctx: ctx, order: shuffle(ROCK_OR_NOT), i: 0, score: 0 }); });
+    on("#s2", "click", function () { go("rockFamilies", ctx); });
+    on("#s3", "click", function () { go("rockList", ctx); });
+  };
+  VIEWS.rockSort = function (o) {
+    var ctx = o.ctx, it = o.order[o.i];
+    $app.innerHTML = mTop(ctx, "Rock or not? · " + (o.i + 1) + " of " + o.order.length) +
+      '<div class="progressbar"><div style="width:' + (o.i / o.order.length * 100) + '%"></div></div>' +
+      '<div class="card center"><div style="font-size:72px">' + it[0] + '</div><div class="scenario" style="margin:8px 0 20px">' + esc(it[1]) + "</div>" +
+      '<div class="row"><button class="btn plum" id="y" style="flex:1">🪨 Rock</button><button class="btn ghost" id="n" style="flex:1">Not rock</button></div><div id="fb"></div></div>';
+    wireBack(function () { go("hw_rocks", ctx); });
+    function answer(rock) {
+      var ok = rock === it[2]; if (ok) o.score++;
+      $("#y").disabled = $("#n").disabled = true;
+      $("#fb").innerHTML = '<div class="feedback ' + (ok ? "good" : "bad") + '">' + (ok ? "Yes! " : "Not quite. ") + (it[2] ? "It's made of <b>" + esc(it[3]) + "</b>, a kind of rock." : "It's made of " + esc(it[3]) + ", not rock.") + "</div>" +
+        '<button class="btn block plum" id="next">' + (o.i + 1 < o.order.length ? "Next →" : "See my score") + "</button>";
+      on("#next", "click", function () {
+        if (o.i + 1 < o.order.length) { o.i++; return go("rockSort", o); }
+        var ms = mState(ctx.hw.id, ctx.m.id);
+        if (ms.sorted == null) S.prog.stars = (S.prog.stars || 0) + o.score;
+        ms.sorted = Math.max(ms.sorted || 0, o.score); save(true);
+        go("hw_rocks", ctx);
+      });
+    }
+    on("#y", "click", function () { answer(true); });
+    on("#n", "click", function () { answer(false); });
+  };
+  function rockCycleSvg() {
+    return '<svg viewBox="0 0 320 250" class="cycle" role="img" aria-label="The rock cycle">' +
+      '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#7b5ea7"/></marker></defs>' +
+      '<path d="M200 52 Q 280 80 268 150" fill="none" stroke="#7b5ea7" stroke-width="3" marker-end="url(#ah)"/>' +
+      '<path d="M222 200 Q 160 238 98 200" fill="none" stroke="#7b5ea7" stroke-width="3" marker-end="url(#ah)"/>' +
+      '<path d="M52 150 Q 40 80 120 52" fill="none" stroke="#7b5ea7" stroke-width="3" marker-end="url(#ah)"/>' +
+      '<g><circle cx="160" cy="44" r="38" fill="#ffe1d8"/><text x="160" y="40" text-anchor="middle" font-size="22">🌋</text><text x="160" y="62" text-anchor="middle" font-size="11" font-weight="800">Igneous</text></g>' +
+      '<g><circle cx="262" cy="190" r="38" fill="#fff1c7"/><text x="262" y="186" text-anchor="middle" font-size="22">🏖️</text><text x="262" y="208" text-anchor="middle" font-size="11" font-weight="800">Sedimentary</text></g>' +
+      '<g><circle cx="58" cy="190" r="38" fill="#ebe3f6"/><text x="58" y="186" text-anchor="middle" font-size="22">🔥</text><text x="58" y="208" text-anchor="middle" font-size="11" font-weight="800">Metamorphic</text></g>' +
+      '<text x="242" y="106" font-size="10.5" fill="#5d4583" text-anchor="end">wind and rain</text><text x="242" y="119" font-size="10.5" fill="#5d4583" text-anchor="end">break it into bits</text>' +
+      '<text x="160" y="244" font-size="10.5" fill="#5d4583" text-anchor="middle">heat and squeezing change it</text>' +
+      '<text x="80" y="106" font-size="10.5" fill="#5d4583">it melts,</text><text x="80" y="119" font-size="10.5" fill="#5d4583">then cools</text></svg>';
+  }
+  VIEWS.rockFamilies = function (ctx) {
+    $app.innerHTML = mTop(ctx, "Rock families") +
+      '<div class="card"><p>There are <b>3 families</b> of rock. You learned about <b>igneous</b> rocks a few weeks ago!</p>' +
+      Object.keys(ROCK_FAM).map(function (k) { var f = ROCK_FAM[k]; return '<div class="featcard" style="background:' + f.colour + '"><div class="ft">' + f.emoji + " " + k.charAt(0).toUpperCase() + k.slice(1) + '</div><div class="fw">' + f.text + '</div><div class="fe">e.g. ' + f.eg + "</div></div>"; }).join("") + "</div>" +
+      '<div class="card center"><h3>How rocks transform 🔄</h3>' + rockCycleSvg() + '<p class="muted">Rocks keep changing from one family to another, very, very slowly. This is the <b>rock cycle</b>.</p></div>' +
+      '<button class="btn block plum" id="quiz">Rock families quiz 🎯</button>';
+    wireBack(function () { go("hw_rocks", ctx); });
+    on("#quiz", "click", function () {
+      var qs = shuffle(Object.keys(ROCK_TYPE)).slice(0, 6).map(function (r) { return { rock: r, answer: ROCK_TYPE[r] }; });
+      go("rockQuiz", { ctx: ctx, qs: qs, i: 0, score: 0 });
+    });
+  };
+  VIEWS.rockQuiz = function (o) {
+    var ctx = o.ctx, q = o.qs[o.i];
+    $app.innerHTML = mTop(ctx, "Rock quiz · " + (o.i + 1) + " of " + o.qs.length) +
+      '<div class="progressbar"><div style="width:' + (o.i / o.qs.length * 100) + '%"></div></div>' +
+      '<div class="card"><h2 style="margin-bottom:14px">Which family is <b>' + q.rock + "</b> in?</h2>" +
+      Object.keys(ROCK_FAM).map(function (k) { return '<button class="choice" data-k="' + k + '">' + ROCK_FAM[k].emoji + " " + k.charAt(0).toUpperCase() + k.slice(1) + "</button>"; }).join("") + '<div id="fb"></div></div>';
+    wireBack(function () { go("rockFamilies", ctx); });
+    $$(".choice").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var ok = b.getAttribute("data-k") === q.answer; if (ok) o.score++;
+        $$(".choice").forEach(function (c) { c.disabled = true; if (c.getAttribute("data-k") === q.answer) c.classList.add("right"); else if (c === b) c.classList.add("wrong"); });
+        $("#fb").innerHTML = '<div class="feedback ' + (ok ? "good" : "bad") + '">' + (ok ? "Yes! " : "") + esc(q.rock.charAt(0).toUpperCase() + q.rock.slice(1)) + " is " + q.answer + ". " + ROCK_FAM[q.answer].emoji + "</div>" +
+          '<button class="btn block plum" id="next">' + (o.i + 1 < o.qs.length ? "Next →" : "See my score") + "</button>";
+        on("#next", "click", function () {
+          if (o.i + 1 < o.qs.length) { o.i++; return go("rockQuiz", o); }
+          var ms = mState(ctx.hw.id, ctx.m.id);
+          if (ms.quiz == null) S.prog.stars = (S.prog.stars || 0) + o.score;
+          ms.quiz = Math.max(ms.quiz || 0, o.score); save(true);
+          go("hw_rocks", ctx);
+        });
+      });
+    });
+  };
+  VIEWS.rockList = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id); ms.list = ms.list || [];
+    var ideas = ["Kitchen worktop", "Dining table", "Front path", "Roof tiles", "Window sill", "Fireplace", "Doorstep", "Garden pebbles", "Garden wall"];
+    $app.innerHTML = mTop(ctx, "My rock hunt list") +
+      '<div class="tipbox" style="margin-bottom:14px">🔍 Look around your home and outside. What is made of rock? Ask a grown-up which rock it is if you\'re not sure. Bricks and concrete are made by people, so they aren\'t natural rocks!</div>' +
+      (ms.list.length ? '<div class="card"><table><tr><th>Thing</th><th>Rock</th><th>Type</th><th></th></tr>' + ms.list.map(function (r, i) {
+        return "<tr><td>" + esc(r.thing) + "</td><td>" + esc(r.rock) + "</td><td>" + esc(ROCK_TYPE[r.rock] || "?") + '</td><td><button class="btn small ghost rm" data-i="' + i + '" aria-label="Remove">×</button></td></tr>';
+      }).join("") + "</table></div>" : "") +
+      '<div class="card"><h3>Add something you found</h3><input id="thing" placeholder="e.g. kitchen worktop">' +
+      '<div class="chips" style="margin:10px 0">' + ideas.map(function (t) { return '<button class="chip idea thingidea">' + t + "</button>"; }).join("") + "</div>" +
+      '<label for="rock">What rock is it? (challenge)</label><select id="rock"><option value="not sure">Not sure</option>' +
+      Object.keys(ROCK_TYPE).map(function (r) { return '<option value="' + r + '">' + r.charAt(0).toUpperCase() + r.slice(1) + " (" + ROCK_TYPE[r] + ")</option>"; }).join("") + "</select>" +
+      '<div style="height:12px"></div><button class="btn block plum" id="add">Add to my list ➕</button></div>' +
+      (ms.list.length >= 3 ? '<button class="btn block" id="fin">' + (ms.done ? "Update my list ⭐" : "My list is finished ⭐") + "</button>" : '<p class="muted center">Find at least 3 things to finish.</p>');
+    wireBack(function () { go("hw_rocks", ctx); });
+    $$(".thingidea").forEach(function (b) { b.addEventListener("click", function () { $("#thing").value = b.textContent; }); });
+    $$(".rm").forEach(function (b) { b.addEventListener("click", function () { ms.list.splice(+b.getAttribute("data-i"), 1); save(); go("rockList", ctx); }); });
+    on("#add", "click", function () {
+      var t = $("#thing").value.trim().slice(0, 60); if (!t) { toast("Type what you found first!"); return; }
+      ms.list.push({ thing: t, rock: $("#rock").value }); save(); go("rockList", ctx);
+    });
+    on("#fin", "click", function () {
+      var named = ms.list.filter(function (r) { return ROCK_TYPE[r.rock]; }).length;
+      finishMission(ctx, { list: ms.list }, 3 + named);
+      missionDone(ctx, "<h2>Rock detective!</h2><p>You found <b>" + ms.list.length + "</b> things made of rock" + (named ? " and named " + named + " of the rocks 🪨" : "") + ".</p>");
+    });
+  };
+
+  // ----- World Children's Day interviews -----
+  var RIGHTS = [
+    ["🛡️", "to be safe", "Nobody should hurt you. Grown-ups should keep you safe."],
+    ["📚", "to learn", "Every child can go to school and learn."],
+    ["🎈", "to play and rest", "Time to play, rest and have fun."],
+    ["🩺", "to be healthy", "To see a doctor and get medicine when you're ill."],
+    ["🍎", "to food and clean water", "Enough healthy food and clean water every day."],
+    ["🏠", "to a home and family", "A safe place to live with people who care for you."],
+    ["🪪", "to a name", "Every child has a name and belongs to a country."],
+    ["🗣️", "to be heard", "To share your ideas and be listened to."]
+  ];
+  VIEWS.hw_rights = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id); ms.people = ms.people || [];
+    $app.innerHTML = mTop(ctx) +
+      '<div class="card"><p>On <b>' + esc(ctx.m.day) + "</b> it's <b>World Children's Day</b>. Every child in the world has <b>rights</b>: things every child needs to be safe, healthy and happy. Tap one to hear it.</p>" +
+      '<div class="rights">' + RIGHTS.map(function (r, i) { return '<button class="rightcard" data-i="' + i + '"><div class="re">' + r[0] + '</div><div class="rn">The right ' + esc(r[1]) + '</div><div class="rt">' + esc(r[2]) + "</div></button>"; }).join("") + "</div></div>" +
+      '<div class="card"><h3>🎤 Your job: interview 3 people</h3><p>Ask each person: <b>"Which right do you think is most important, and why?"</b></p>' +
+      '<button class="btn small ghost" id="ask">🔊 Hear the question</button>' +
+      '<p class="muted" style="margin-top:10px">Example answer: "I think the right to be safe is the most important because every child should feel safe and protected."</p></div>' +
+      (ms.people.length ? '<div class="card"><h3>My interviews (' + ms.people.length + ' of 3)</h3>' + ms.people.map(function (p, i) {
+        var r = RIGHTS[p.right];
+        return '<div class="interview"><div class="iw">' + r[0] + " <b>" + esc(p.who) + "</b> chose the right " + esc(r[1]) + "</div>" + (p.why ? '<div class="iy">because ' + esc(p.why) + "</div>" : "") + '<button class="btn small ghost rmp" data-i="' + i + '">Remove</button></div>';
+      }).join("") + "</div>" : "") +
+      (ms.people.length < 3 ? '<button class="btn block sun" id="add">Add person ' + (ms.people.length + 1) + " 🎤</button>" : "");
+    backToHub(ctx);
+    $$(".rightcard").forEach(function (b) { b.addEventListener("click", function () { var r = RIGHTS[+b.getAttribute("data-i")]; speak("The right " + r[1] + ". " + r[2], 0.9); }); });
+    on("#ask", "click", function () { speak("Which right do you think is most important, and why?", 0.9); });
+    $$(".rmp").forEach(function (b) { b.addEventListener("click", function () { ms.people.splice(+b.getAttribute("data-i"), 1); ms.done = false; save(); go("hw_rights", ctx); }); });
+    on("#add", "click", function () { go("rightsAdd", { ctx: ctx, right: null }); });
+  };
+  VIEWS.rightsAdd = function (o) {
+    var ctx = o.ctx, ms = mState(ctx.hw.id, ctx.m.id);
+    $app.innerHTML = mTop(ctx, "Interview " + (ms.people.length + 1) + " of 3") +
+      '<div class="card"><label for="who" style="margin-top:0">Who did you ask?</label><input id="who" placeholder="e.g. Mum, Grandad, our neighbour" value="' + esc(o.who || "") + '">' +
+      '<label>Which right did they choose?</label><div class="rights small">' + RIGHTS.map(function (r, i) {
+        return '<button class="rightcard ' + (o.right === i ? "on" : "") + '" data-i="' + i + '"><div class="re">' + r[0] + '</div><div class="rn">' + esc(r[1]) + "</div></button>";
+      }).join("") + "</div>" +
+      '<label for="why">Why? (what did they say)</label><textarea id="why" rows="3" placeholder="because…">' + esc(o.why || "") + "</textarea>" +
+      '<div id="fb"></div><div style="height:12px"></div><button class="btn block sun" id="save">Save interview ✓</button></div>';
+    wireBack(function () { go("hw_rights", ctx); });
+    $$(".rightcard").forEach(function (b) {
+      b.addEventListener("click", function () { o.right = +b.getAttribute("data-i"); o.who = $("#who").value; o.why = $("#why").value; go("rightsAdd", o); });
+    });
+    on("#save", "click", function () {
+      var who = $("#who").value.trim().slice(0, 40), why = $("#why").value.trim().replace(/^because\s+/i, "").slice(0, 300);
+      if (!who) { $("#fb").innerHTML = '<div class="feedback bad">Who did you ask?</div>'; return; }
+      if (o.right == null) { $("#fb").innerHTML = '<div class="feedback bad">Tap the right they chose.</div>'; return; }
+      ms.people.push({ who: who, right: o.right, why: why }); save(true);
+      if (ms.people.length >= 3) {
+        finishMission(ctx, { people: ms.people }, 5);
+        return missionDone(ctx, "<h2>Great interviewing!</h2>" + ms.people.map(function (p) { return '<p class="mysent"><b>' + esc(p.who) + "</b>: the right " + esc(RIGHTS[p.right][1]) + (p.why ? ", because " + esc(p.why) : "") + "</p>"; }).join(""));
+      }
+      go("hw_rights", ctx);
+    });
+  };
+
+  // ----- review: earlier weeks' spellings and maths keep coming back -----
+  var _hwWords = null;
+  function HW_WORDS() {
+    if (_hwWords) return _hwWords;
+    _hwWords = {};
+    (window.HOMEWORK || []).forEach(function (hw) {
+      var add = function (words, unit) {
+        words.forEach(function (w) { var k = wordKey(w[0]); if (!_hwWords[k]) _hwWords[k] = { word: w[0], sentence: w[1], unit: unit, due: hw.due }; });
+      };
+      if (hw.spelling) add(hw.spelling.words, hw.id + ":spell");
+      (hw.missions || []).forEach(function (m) { if (m.type === "spelling") add(m.words, hw.id + ":" + m.id); });
+    });
+    return _hwWords;
+  }
+  function hwSpellWords(hw) {
+    var out = [];
+    if (hw.spelling) out = out.concat(hw.spelling.words);
+    (hw.missions || []).forEach(function (m) { if (m.type === "spelling") out = out.concat(m.words); });
+    return out;
+  }
+  // Words from homework already handed in go straight into the review cycle
+  // (she learned them on paper), spread over 3 days so no test is too long.
+  function seedPastHomework() {
+    var t = today(), changed = false, i = 0;
+    (window.HOMEWORK || []).forEach(function (hw) {
+      if (hw.due >= t) return;
+      hwSpellWords(hw).forEach(function (w) {
+        var k = wordKey(w[0]);
+        if (S.prog.words[k]) { if (!S.prog.words[k].s) { S.prog.words[k].s = 1; changed = true; } return; }
+        S.prog.words[k] = { w: w[0], b: 1, r: 0, x: 0, first: t, last: hw.due, due: addDays(t, i++ % 3), s: 1, sen: w[1] };
+        changed = true;
+      });
+    });
+    return changed;
+  }
+  // Up to 6 words from earlier homework, weakest first, for the weekly test.
+  function reviewWords(hw, exclude) {
+    var keys = [];
+    (window.HOMEWORK || []).forEach(function (h) {
+      if (h.due >= hw.due) return;
+      hwSpellWords(h).forEach(function (w) { var k = wordKey(w[0]); if (exclude.indexOf(k) < 0 && keys.indexOf(k) < 0) keys.push(k); });
+    });
+    var score = function (k) { var e = S.prog.words[k]; return e ? e.b * 10 - e.x * 3 : 15; };
+    return shuffle(keys).sort(function (a, b) { return score(a) - score(b); }).slice(0, 6);
+  }
+
+  var SKILLS = {
+    moreless: { name: "1, 10 and 100 more or less", gen: function () {
+      var n = rand(120, 880), d = pick([1, 10, 100]), more = Math.random() < 0.5, ans = more ? n + d : n - d;
+      var place = { 1: "ones", 10: "tens", 100: "hundreds" }[d], digit = Math.floor(n / d) % 10;
+      var cross = more ? digit === 9 : digit === 0;
+      return { q: "What is <b>" + d + " " + (more ? "more" : "less") + "</b> than <b>" + n + "</b>?", answer: ans,
+        explain: d + " " + (more ? "more" : "less") + " changes the <b>" + place + "</b>: " + n + " → " + ans + "." + (cross ? " The " + place + " went " + (more ? "past 9" : "below 0") + ", so the next column changed too!" : "") };
+    } },
+    bonds10: { name: "Number bonds × 10", gen: function () {
+      var a = rand(1, 7), b = rand(1, 9 - a), c = a + b, v = rand(0, 3);
+      var fact = "You know <b>" + a + " + " + b + " = " + c + "</b>. ";
+      if (v === 0) return { q: fact + "So what is <b>" + a * 10 + " + " + b * 10 + "</b>?", answer: c * 10, explain: "Everything is 10 times bigger: " + a * 10 + " + " + b * 10 + " = " + c * 10 + "." };
+      if (v === 1) return { q: fact + "So what is <b>" + c * 10 + " − " + a * 10 + "</b>?", answer: b * 10, explain: "If " + a * 10 + " + " + b * 10 + " = " + c * 10 + ", then " + c * 10 + " − " + a * 10 + " = " + b * 10 + "." };
+      if (v === 2) return { q: fact + "So what is <b>" + a * 100 + " + " + b * 100 + "</b>?", answer: c * 100, explain: "100 times bigger: " + a * 100 + " + " + b * 100 + " = " + c * 100 + "." };
+      var right = Math.random() < 0.4;
+      var says = right ? a * 10 + " + " + b * 10 + " = " + c * 10 : a * 10 + " + " + b + " = " + c * 10;
+      return { q: fact + "🐢 Tiny says <b>" + says + "</b>. Is Tiny correct?", opts: ["Yes, Tiny is right", "No, Tiny is wrong"], answer: right ? 0 : 1,
+        explain: right ? "Yes! 10 times " + a + " is " + a * 10 + ", and 10 times " + b + " is " + b * 10 + "."
+          : "No! " + a * 10 + " + " + b + " = " + (a * 10 + b) + ". Tiny should say " + a * 10 + " + " + b * 10 + " = " + c * 10 + "." };
+    } },
+    colsub: { name: "Column subtraction", gen: function () {
+      var a, b;
+      do { a = rand(300, 899); b = rand(101, a - 100); } while (!((a % 10 < b % 10) || (Math.floor(a / 10) % 10 < Math.floor(b / 10) % 10)));
+      return { q: "Use the column method: <b>" + a + " − " + b + "</b> = ?", answer: a - b, explain: "Start with the ones, and exchange when the top number is smaller:", worked: colWorked(a, b), paper: true };
+    } }
+  };
+  function colWorked(a, b) {
+    var d = function (n) { return [n % 10, Math.floor(n / 10) % 10, Math.floor(n / 100) % 10]; };
+    var top = d(a), bot = d(b), cur = top.slice(), ch = [0, 0, 0];
+    for (var p = 0; p < 2; p++) {
+      if (cur[p] < bot[p]) {
+        if (cur[p + 1] === 0) { cur[p + 2]--; cur[p + 1] += 10; ch[p + 2] = ch[p + 1] = 1; }
+        cur[p + 1]--; cur[p] += 10; ch[p + 1] = ch[p] = 1;
+      }
+    }
+    var ans = d(a - b), cols = [2, 1, 0];
+    return '<div class="colgrid small">' +
+      cols.map(function (c) { return '<div class="ch c' + c + '">' + "OTH"[c] + "</div>"; }).join("") +
+      cols.map(function (c) { return '<div class="cex">' + (ch[c] ? cur[c] : "") + "</div>"; }).join("") +
+      cols.map(function (c) { return '<div class="ctop ' + (ch[c] ? "crossed" : "") + '">' + top[c] + "</div>"; }).join("") +
+      cols.map(function (c, j) { return '<div class="cbot">' + (j === 0 ? '<span class="minus">−</span>' : "") + bot[c] + "</div>"; }).join("") +
+      '<div class="cline"></div>' + cols.map(function (c) { return '<div class="cans filled">' + ans[c] + "</div>"; }).join("") + "</div>";
+  }
+  function reviewSkillsFor(hw) {
+    var seen = {}, out = [];
+    (window.HOMEWORK || []).filter(function (h) { return h.due < hw.due; }).sort(function (x, y) { return x.due < y.due ? 1 : -1; }).forEach(function (h) {
+      (h.skills || []).forEach(function (k) { if (SKILLS[k] && !seen[k]) { seen[k] = 1; out.push({ key: k, from: h.due }); } });
+    });
+    return out;
+  }
+  function hwMissions(hw) {
+    var list = (hw.missions || []).slice();
+    if (reviewSkillsFor(hw).length) list.push({ id: "review", type: "review", emoji: "🔁", colour: "teal", title: "Remember these!", sub: "Maths from earlier weeks" });
+    return list;
+  }
+
+  VIEWS.hw_review = function (ctx) {
+    var skills = reviewSkillsFor(ctx.hw), ms = mState(ctx.hw.id, ctx.m.id);
+    $app.innerHTML = mTop(ctx) +
+      '<div class="card center"><div style="font-size:56px">🔁</div><h2>Remember these?</h2><p>Quick questions on maths from your earlier homework, with new numbers.</p>' +
+      '<div class="steps" style="text-align:left">' + skills.map(function (s) { return '<div>🧠 <span style="font-weight:800">' + esc(SKILLS[s.key].name) + '</span><br><span class="muted">from homework due ' + niceDate(s.from) + "</span></div>"; }).join("") + "</div>" +
+      (ms.done ? "<p><b>Last time: " + ms.score + " / " + ms.total + "</b></p>" : "") +
+      '<button class="btn block" id="go">' + (ms.done ? "Have another go" : "Let's go!") + "</button></div>";
+    backToHub(ctx);
+    on("#go", "click", function () {
+      var qs = [];
+      for (var i = 0; i < 8; i++) { var s = skills[i % skills.length]; var q = SKILLS[s.key].gen(); q.skill = s.key; q.from = s.from; qs.push(q); }
+      go("reviewQ", { ctx: ctx, qs: shuffle(qs), i: 0, score: 0 });
+    });
+  };
+  VIEWS.reviewQ = function (o) {
+    var ctx = o.ctx, q = o.qs[o.i];
+    $app.innerHTML = mTop(ctx, "Question " + (o.i + 1) + " of " + o.qs.length) +
+      '<div class="progressbar"><div style="width:' + (o.i / o.qs.length * 100) + '%"></div></div>' +
+      '<div class="card"><span class="chip">🔁 ' + esc(SKILLS[q.skill].name) + '</span><h2 style="margin:14px 0">' + q.q + "</h2>" +
+      (q.opts ? q.opts.map(function (t, i) { return '<button class="choice" data-i="' + i + '">' + esc(t) + "</button>"; }).join("")
+        : (q.paper ? '<p class="muted">Work it out on paper first ✏️</p>' : "") + '<input id="ans" class="spellinput" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="?"><div style="height:12px"></div><button class="btn block" id="ok">Check ✓</button>') +
+      '<div id="fb"></div></div>';
+    wireBack(function () { go("hw_review", ctx); });
+    function done(ok) {
+      if (ok) o.score++;
+      $("#fb").innerHTML = '<div class="feedback ' + (ok ? "good" : "bad") + '">' + (ok ? pick(["Yes! ⭐", "You remembered! 🧠", "Brilliant! 🌟"]) + "<br>" : "Not quite. The answer is <b>" + (q.opts ? esc(q.opts[q.answer]) : q.answer) + "</b>.<br>") +
+        '<small style="font-weight:500">' + q.explain + "</small>" + (!ok && q.worked ? q.worked : "") + "</div>" +
+        '<button class="btn block" id="next">' + (o.i + 1 < o.qs.length ? "Next →" : "See my score") + "</button>";
+      var c = $("#ok"); if (c) c.remove();
+      on("#next", "click", function () {
+        if (o.i + 1 < o.qs.length) return go("reviewQ", { ctx: ctx, qs: o.qs, i: o.i + 1, score: o.score });
+        finishMission(ctx, { score: o.score, total: o.qs.length }, o.score);
+        missionDone(ctx, '<div class="score">' + o.score + " / " + o.qs.length + "</div><p>" +
+          (o.score >= 7 ? "Your brain remembered loads! 🧠" : "Good try! These will come back next week too.") + "</p>");
+      });
+    }
+    if (q.opts) {
+      $$(".choice").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var i = +b.getAttribute("data-i");
+          $$(".choice").forEach(function (c, j) { c.disabled = true; if (j === q.answer) c.classList.add("right"); else if (j === i) c.classList.add("wrong"); });
+          done(i === q.answer);
+        });
+      });
+    } else {
+      focusSoon("#ans");
+      var check = function () { var v = $("#ans").value.trim(); if (v === "") return; $("#ans").disabled = true; done(parseInt(v, 10) === q.answer); };
+      on("#ok", "click", check);
+      on("#ans", "keydown", function (e) { if (e.key === "Enter") check(); });
+    }
+  };
+
+  function colAddWorked(a, b) {
+    var top = digits3(a), bot = digits3(b), ans = digits3(a + b), carry = [0, 0, 0];
+    for (var p = 0; p < 2; p++) if (top[p] + bot[p] + carry[p] >= 10) carry[p + 1] = 1;
+    var cols = [2, 1, 0], shown = function (c) { return (c === 2 && b < 100) || (c === 1 && b < 10) ? "" : bot[c]; };
+    return '<div class="colgrid small">' +
+      cols.map(function (c) { return '<div class="ch c' + c + '">' + "OTH"[c] + "</div>"; }).join("") +
+      cols.map(function (c) { return '<div class="ctop">' + top[c] + "</div>"; }).join("") +
+      cols.map(function (c, j) { return '<div class="cbot">' + (j === 0 ? '<span class="minus">+</span>' : "") + shown(c) + "</div>"; }).join("") +
+      '<div class="cline"></div>' + cols.map(function (c) { return '<div class="cans filled">' + ans[c] + "</div>"; }).join("") +
+      cols.map(function (c) { return '<div class="ccarry">' + (carry[c] || "") + "</div>"; }).join("") + "</div>";
+  }
+  SKILLS.coladd = { name: "Column addition", gen: function () {
+    var a, b;
+    do { a = rand(120, 880); b = rand(12, 98); } while (!((a % 10 + b % 10 >= 10) || (Math.floor(a / 10) % 10 + Math.floor(b / 10) % 10 >= 10)) || a + b > 999);
+    return { q: "Use the column method: <b>" + a + " + " + b + "</b> = ?", answer: a + b, explain: "Start with the ones. If a column makes 10 or more, carry the 1:", worked: colAddWorked(a, b), paper: true };
+  } };
+
   // ----- parent view of homework -----
   function parentHomework(p) {
-    var hws = (window.HOMEWORK || []).filter(function (hw) { return daysUntil(hw.due) >= -21; });
+    var hws = (window.HOMEWORK || []).filter(function (hw) { return !hw.done && daysUntil(hw.due) >= -21; });
     return hws.map(function (hw) {
       var st = (p.hw || {})[hw.id] || {};
-      var rows = hw.missions.map(function (m) {
+      var rows = hwMissions(hw).map(function (m) {
         var ms = st[m.id] || {}, detail = "";
         if (m.type === "spelling" && ms.total) detail = "Test " + ms.score + "/" + ms.total + (ms.wrong && ms.wrong.length ? " · missed " + ms.wrong.join(", ") : "");
         if (m.type === "colsub") detail = Object.keys(ms.solved || {}).length + "/" + m.sums.length + " sums";
         if (m.type === "predict" && ms.sentences) detail = ms.sentences.map(function (t) { return "“" + esc(t) + "”"; }).join("<br>");
         if (m.type === "compass") detail = (ms.quiz != null ? "Quiz " + ms.quiz + "/8. " : "") + (ms.answers ? HUNT.map(function (c) { return c + ": " + (ms.answers[c] || "—"); }).join(", ") : "");
+        if (m.type === "coladd") detail = Object.keys(ms.solved || {}).length + "/" + m.sums.length + " sums";
+        if (m.type === "describe" && ms.paragraph) detail = "“" + esc(ms.paragraph) + "”";
+        if (m.type === "rocks") detail = (ms.sorted != null ? "Rock or not " + ms.sorted + "/10. " : "") + (ms.quiz != null ? "Families quiz " + ms.quiz + "/6. " : "") +
+          (ms.list || []).map(function (r) { return esc(r.thing) + " – " + esc(r.rock); }).join(", ");
+        if (m.type === "rights") detail = (ms.people || []).map(function (x) { return esc(x.who) + ": the right " + esc(RIGHTS[x.right][1]) + (x.why ? " (" + esc(x.why) + ")" : ""); }).join("<br>");
+        if (m.type === "spelling" && ms.pairs != null) detail += (detail ? " · " : "") + "Which-one game " + ms.pairs + "/10";
+        if (m.type === "review" && ms.total) detail = "Maths review " + ms.score + "/" + ms.total;
         if (m.type === "discuss") detail = Object.keys(ms.talked || {}).length + "/" + m.questions.length + " talked about" +
           Object.keys(ms.notes || {}).filter(function (k) { return ms.notes[k]; }).map(function (k) { return "<br>" + (+k + 1) + ". " + esc(ms.notes[k]); }).join("");
         return "<tr><td>" + (ms.done ? "⭐" : "◻️") + " " + m.emoji + "</td><td><b>" + esc(m.title) + "</b>" + (detail ? '<br><span class="muted">' + detail + "</span>" : "") + "</td></tr>";
       }).join("");
-      return '<div class="card"><h3>📝 Homework: ' + esc(hw.title) + '</h3><p class="muted">' + dueText(hw.due) + " · " + hwDoneCount(hw, st) + "/" + hw.missions.length + " missions done</p><table>" + rows + "</table></div>";
+      return '<div class="card"><h3>📝 Homework: ' + esc(hw.title) + '</h3><p class="muted">' + dueText(hw.due) + " · " + hwDoneCount(hw, st) + "/" + hwMissions(hw).length + " missions done</p><table>" + rows + "</table></div>";
     }).join("");
   }
 

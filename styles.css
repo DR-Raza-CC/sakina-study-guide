@@ -290,3 +290,41 @@ details summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 .qcard.done .qn { background: var(--good); color: #fff; }
 .qcard .note { font-size: 16px; min-height: 0; margin-top: 8px; background: rgba(255,255,255,.8); }
 .qcard .ideas .chip { background: #fff; }
+.colgrid.small { grid-template-columns: repeat(3, 54px); margin: 12px auto 4px; }
+.colgrid.small .ctop, .colgrid.small .cbot { font-size: 30px; height: 42px; line-height: 42px; }
+.colgrid.small .cans { font-size: 28px; height: 46px; }
+.colgrid.small .cex { font-size: 16px; height: 20px; }
+.colgrid.small .ch { font-size: 13px; }
+.colgrid.small .minus { left: -12px; }
+
+/* Week of 16 Nov: addition, descriptions, rocks, rights */
+.colgrid .ccarry { height: 22px; color: var(--bad); font-weight: 800; font-size: 18px; }
+.colgrid.small .ccarry { font-size: 15px; height: 18px; }
+.exsent { font-size: 20px; line-height: 1.7; }
+.exsent.big { font-size: 21px; font-weight: 600; margin-bottom: 10px; }
+.feat-time { background: #ebe3f6; border-radius: 6px; padding: 1px 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.feat-noun { background: #d9f2ee; border-radius: 6px; padding: 1px 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.feat-simile { background: #ffe1d8; border-radius: 6px; padding: 1px 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.feat-time-bg { background: #ebe3f6; } .feat-noun-bg { background: #d9f2ee; } .feat-simile-bg { background: #ffe1d8; }
+.featcard { border-radius: 16px; padding: 12px 14px; margin-top: 10px; }
+.featcard .ft { font-weight: 800; font-size: 17px; }
+.featcard .fw { font-size: 15px; margin-top: 2px; }
+.featcard .fe { font-size: 14px; color: var(--muted); margin-top: 4px; font-style: italic; }
+.bgroup { margin-top: 14px; }
+.bgroup .bt { display: inline-block; font-weight: 800; font-size: 15px; border-radius: 10px; padding: 4px 10px; margin-bottom: 8px; background: #f6efe2; }
+.chip.pickchip.on { background: var(--coral); border-color: var(--coral); color: #fff; }
+.checklist { margin-top: 12px; display: grid; gap: 6px; }
+.checklist .ck { font-size: 15px; color: var(--muted); display: flex; gap: 8px; align-items: flex-start; }
+.checklist .ck span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #f1e8d8; font-size: 13px; flex-shrink: 0; }
+.checklist .ck.on { color: #13784a; font-weight: 600; }
+.checklist .ck.on span { background: var(--good); color: #fff; }
+.cycle { width: 100%; max-width: 340px; font-family: Lexend, sans-serif; }
+.rights { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.rightcard { text-align: left; font: inherit; color: inherit; background: #fffbea; border: 2px solid #f6e3a6; border-radius: 16px; padding: 10px; cursor: pointer; }
+.rightcard .re { font-size: 26px; }
+.rightcard .rn { font-weight: 800; font-size: 15px; }
+.rightcard .rt { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.rights.small .rightcard { padding: 8px; }
+.rightcard.on { background: var(--sun); border-color: #d9a61f; }
+.interview { border-left: 5px solid var(--sun); background: #fffdf6; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.interview .iy { font-size: 15px; color: var(--muted); margin: 2px 0 6px; }

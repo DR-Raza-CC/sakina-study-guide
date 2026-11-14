@@ -1,16 +1,84 @@
 // Sakina Study Guide — weekly homework.
 // Add a new block to the top of this list for each new homework sheet.
 // Mission types: spelling, colsub, predict, compass, discuss.
+// "skills" lists the maths from that week. Earlier weeks' skills come back
+// in every later homework as a "Remember these!" mission.
+// Sheets marked done: true were completed on paper. They get no missions,
+// but their spellings and maths keep coming back for review.
 
 window.HOMEWORK = [
+  {
+    id: "hw-2026-11-16",
+    due: "2026-11-16",
+    title: "Character descriptions",
+    skills: ["coladd"],
+    missions: [
+      {
+        id: "spell", type: "spelling", emoji: "✏️", colour: "teal",
+        title: "Spelling: sound-alike words",
+        sub: "Homophones: look, write, check, then a test",
+        tip: "These are homophones: they sound the same but are spelt differently and mean different things. Listen to the sentence to choose the right one!",
+        words: [
+          ["here", "Come over here, please."],
+          ["hear", "I can hear the birds singing."],
+          ["heel", "I have a blister on my heel."],
+          ["heal", "The cut on my knee will heal soon."],
+          ["main", "We walked along the main road."],
+          ["mane", "The lion shook its fluffy mane."],
+          ["mail", "The postman brought the mail."],
+          ["male", "The male duck has a shiny green head."],
+          ["knot", "Tie a knot in your shoelace."],
+          ["not", "I am not tired yet."]
+        ],
+        pairs: [["here", "hear"], ["heel", "heal"], ["main", "mane"], ["mail", "male"], ["knot", "not"]],
+        hints: { here: "a place", hear: "you hear with your ear!", heel: "the back of your foot", heal: "get better", main: "the most important or biggest", mane: "hair on a lion or horse", mail: "letters and parcels", male: "a boy animal or man", knot: "a twist in string or rope (the k is silent!)", not: "the opposite of yes" },
+        paper: "Now write each word 10 times in your homework book, then ask a grown-up to test you."
+      },
+      {
+        id: "add", type: "coladd", emoji: "➕", colour: "sky",
+        title: "Maths: column addition",
+        sub: "8 sums with carrying",
+        sums: [[347, 26], [582, 41], [217, 73], [435, 58], [781, 24], [358, 67], [694, 36], [537, 82]],
+        paper: "Copy each sum into your book in columns. Show the numbers you carry."
+      },
+      {
+        id: "describe", type: "describe", emoji: "🦸", colour: "coral",
+        title: "English: describe a character",
+        sub: "Noun phrases, similes and time adverbials",
+        example: [["Yesterday,", "time"], [" the brave, curly-haired boy", "noun"], [" crept through the dark forest ", ""], ["like a sneaky fox", "simile"], [".", ""]],
+        builder: {
+          time: ["Yesterday,", "One sunny morning,", "Last night,", "After school,", "Suddenly,", "At midnight,"],
+          adj: ["brave", "kind", "tiny", "clever", "curly-haired", "sparkly-eyed", "cheeky", "gentle", "grumpy", "fearless"],
+          action: ["crept through the dark forest", "skipped across the playground", "tiptoed down the creaky stairs", "zoomed around the park", "danced in the rain", "climbed the tallest tree"],
+          simile: ["like a sneaky fox", "as fast as a cheetah", "like a bouncing bunny", "as quiet as a mouse", "like a roaring lion", "as light as a feather"]
+        },
+        paper: "Write your paragraph in your book in your neatest handwriting. Check capital letters, commas and full stops!"
+      },
+      {
+        id: "rocks", type: "rocks", emoji: "🪨", colour: "plum",
+        title: "Science: rock hunt",
+        sub: "Find things made of rock at home",
+        paper: "Copy your rock list into your book. Challenge: write the type of each rock too."
+      },
+      {
+        id: "rights", type: "rights", emoji: "🌍", colour: "sun",
+        title: "World Children's Day",
+        sub: "Ask 3 people about children's rights",
+        day: "Friday 20 November",
+        paper: "Write down each person's answer in your book: who they are, which right, and why."
+      }
+    ]
+  },
   {
     id: "hw-2026-11-09",
     due: "2026-11-09",
     title: "Iron Man week",
+    skills: ["colsub"],
     missions: [
       {
         id: "spell", type: "spelling", emoji: "✏️", colour: "teal",
         title: "Spelling: 'ear' words",
+        mark: "ear",
         sub: "Look, write, check. Then a grown-up test!",
         tip: "In these words, 'ear' says 'er', like in her. Listen: earth, learn, search.",
         words: [
@@ -88,5 +156,49 @@ window.HOMEWORK = [
         ]
       }
     ]
+  },
+  {
+    id: "hw-2026-11-02",
+    due: "2026-11-02",
+    title: "Rocks and similes",
+    done: true,
+    skills: ["moreless"],
+    spelling: {
+      tip: "ai makes the 'ay' sound in the middle of a word: brain, afraid. In straight it's spelt aigh!",
+      words: [
+        ["straight", "Draw a straight line with a ruler."],
+        ["campaign", "Our class ran a campaign to save the trees."],
+        ["contain", "These boxes contain old toys."],
+        ["brain", "Your brain helps you think."],
+        ["faint", "I heard a faint knock at the door."],
+        ["waist", "She tied a belt around her waist."],
+        ["claim", "I claim the last biscuit!"],
+        ["praise", "Our teacher gave us praise for good work."],
+        ["complaint", "Dad made a complaint about the cold food."],
+        ["afraid", "The kitten was afraid of the dog."]
+      ]
+    }
+  },
+  {
+    id: "hw-2026-10-26",
+    due: "2026-10-26",
+    title: "Milo Imagines the World",
+    done: true,
+    skills: ["bonds10"],
+    spelling: {
+      tip: "ey can make the long 'ay' sound at the end of a word: they, grey, obey.",
+      words: [
+        ["hey", "Hey, wait for me!"],
+        ["they", "They went to the park."],
+        ["obey", "Dogs can learn to obey."],
+        ["grey", "The sky was grey and cloudy."],
+        ["prey", "The owl hunted its prey at night."],
+        ["whey", "Little Miss Muffet ate her curds and whey."],
+        ["purvey", "The bakery will purvey fresh bread to the cafe."],
+        ["convey", "Pictures can convey how we feel."],
+        ["disobey", "Don't disobey the lollipop lady."],
+        ["survey", "We did a survey of our favourite fruits."]
+      ]
+    }
   }
 ];

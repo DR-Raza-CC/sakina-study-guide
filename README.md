@@ -13,6 +13,8 @@ Hosted free on Cloudflare Pages. Progress is stored in Cloudflare KV.
   ➕➖ levels: bonds to 10, bonds to 20, adding tens, tens and ones, two-digit numbers.
   ✖️➗ levels: 2/5/10, 3, 4, 8 times tables, then all Year 3 tables. Two scores of 9+ unlock the next level.
 - **Homework** — each week's homework sheet becomes a set of colourful missions with stars (spelling, maths, English, geography, talk time). Add new weeks to `homework.js`.
+  Spellings from every homework stay in the daily test and come back at least once a week until mastered, and 6 earlier words join each weekly homework test.
+  Each homework's maths (its `skills`) comes back in later weeks as a "Remember these!" mission with new numbers.
 - **Parent dashboard** — streak, 14-day calendar, mastered words, missed words, book quiz and maths scores, settings.
 
 Word bank: the "Year 3 Spelling tests – Word Lists" sheet, week by week from Autumn 1 to Summer 2

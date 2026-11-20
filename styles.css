@@ -328,3 +328,59 @@ details summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 .rightcard.on { background: var(--sun); border-color: #d9a61f; }
 .interview { border-left: 5px solid var(--sun); background: #fffdf6; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
 .interview .iy { font-size: 15px; color: var(--muted); margin: 2px 0 6px; }
+
+/* Week of 23 Nov: times tables, handwriting, Stone Age, commissioner */
+.tricks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.trick { background: #ddeefa; border-radius: 14px; padding: 8px 10px; display: grid; grid-template-columns: 26px 1fr; column-gap: 6px; align-items: center; }
+.trick span { grid-row: span 2; font-size: 20px; }
+.trick b { font-size: 15px; }
+.trick small { font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+.roundbtn { display: flex; align-items: center; gap: 10px; width: 100%; font: inherit; color: inherit; background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 12px 14px; margin-top: 8px; cursor: pointer; box-shadow: var(--shadow); }
+.roundbtn span { color: var(--muted); font-size: 14px; }
+.roundbtn em { margin-left: auto; font-style: normal; font-weight: 800; color: var(--sky); }
+.roundbtn.done { background: #e6f8ee; border-color: #bfe8cf; }
+.roundbtn.done em { color: #13784a; }
+.ttq { font-size: 44px; font-weight: 800; margin: 10px 0 6px; }
+.ttans { display: inline-block; min-width: 86px; border-bottom: 4px solid var(--sky); color: var(--sky); }
+.pinpad.tt { margin-top: 12px; }
+.pinpad.tt button { height: 60px; }
+.hwlines { font-size: 22px; line-height: 44px; padding: 4px 6px 0; letter-spacing: .5px;
+  background-image: linear-gradient(to bottom, transparent 13px, #e6dccb 13px, #e6dccb 14px, transparent 14px, transparent 30px, #9fb4c7 30px, #9fb4c7 32px, transparent 32px);
+  background-size: 100% 44px; border-radius: 8px; }
+.hwlines.big { font-size: 28px; line-height: 52px; background-size: 100% 52px;
+  background-image: linear-gradient(to bottom, transparent 15px, #e6dccb 15px, #e6dccb 16px, transparent 16px, transparent 36px, #9fb4c7 36px, #9fb4c7 38px, transparent 38px); margin-bottom: 4px; }
+.hwlines.huge { font-size: 88px; line-height: 150px; background-size: 100% 150px; display: inline-block; padding: 0 40px;
+  background-image: linear-gradient(to bottom, transparent 46px, #e6dccb 46px, #e6dccb 48px, transparent 48px, transparent 104px, #9fb4c7 104px, #9fb4c7 107px, transparent 107px); }
+.lk-asc, .ink-asc { color: #7b5ea7; font-weight: 700; }
+.lk-desc, .ink-desc { color: #e0603e; font-weight: 700; }
+.copyrow { border: 2px solid var(--line); border-radius: 16px; padding: 10px; margin-top: 10px; }
+.copyrow.on { background: #f3fbf6; border-color: #bfe8cf; }
+.tick { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; font-size: 16px; margin: 10px 0 0; }
+.tick input { width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px; accent-color: var(--teal); }
+.btn.lg { min-height: 56px; font-size: 16px; }
+.stonescene { width: 100%; display: block; font-family: Lexend, sans-serif; }
+.stonescene .spotlbl { font-size: 10px; font-weight: 800; fill: #13784a; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+
+/* Egg, pets and Pet Catch */
+.eggcard { margin-bottom: 14px; background: linear-gradient(180deg, #fff, #fffaf0); }
+.eggbox { width: 150px; margin: 0 auto 6px; transform: scale(var(--s)); transform-origin: 50% 90%; transition: transform .5s; }
+.eggbox .egg, .eggtap .egg { width: 100%; display: block; }
+.eggbox.wobble { animation: wobble 1.6s ease-in-out infinite; }
+@keyframes wobble { 0%, 70%, 100% { transform: scale(var(--s)) rotate(0); } 78% { transform: scale(var(--s)) rotate(-6deg); } 86% { transform: scale(var(--s)) rotate(6deg); } 94% { transform: scale(var(--s)) rotate(-3deg); } }
+.eggdots { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
+.eggdots span { width: 14px; height: 14px; border-radius: 50%; background: #f1e8d8; }
+.eggdots span.on { background: var(--sun); box-shadow: 0 0 0 2px #e0b400 inset; }
+.eggdots.big span { width: 20px; height: 20px; }
+.eggtap { width: 200px; border: 0; background: none; padding: 0; cursor: pointer; display: block; margin: 8px auto; }
+.eggtap.shake { animation: shake .45s; }
+@keyframes shake { 20% { transform: rotate(-10deg); } 40% { transform: rotate(10deg); } 60% { transform: rotate(-7deg); } 80% { transform: rotate(5deg); } }
+.petbox { display: flex; justify-content: center; }
+.petbox.pop { animation: pop .6s ease-out; }
+.confetti { font-size: 28px; letter-spacing: 6px; animation: pop .6s ease-out; }
+.petstrip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.petchip { border: 2px solid var(--line); background: #fff; border-radius: 18px; padding: 6px 10px; display: flex; flex-direction: column; align-items: center; cursor: pointer; font: inherit; color: inherit; flex-shrink: 0; }
+.petchip span { font-weight: 800; font-size: 14px; }
+.gamehud { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 20px; margin-bottom: 8px; }
+.gamewrap { position: relative; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); border: 2px solid #b5d9ee; }
+.gamewrap canvas { display: block; }
+.gameover { position: absolute; inset: 0; background: rgba(255, 248, 236, .94); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }

@@ -384,3 +384,16 @@ details summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 .gamewrap { position: relative; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); border: 2px solid #b5d9ee; }
 .gamewrap canvas { display: block; }
 .gameover { position: absolute; inset: 0; background: rgba(255, 248, 236, .94); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+
+/* Streak surprises and sticker book */
+.btn.gift { margin-top: 14px; background: linear-gradient(135deg, #ff7a59, #7b5ea7); box-shadow: 0 5px 0 #5d4583; animation: pulse 1.4s ease-in-out infinite; }
+.giftbox { font-size: 110px; border: 0; background: none; cursor: pointer; display: block; margin: 10px auto; animation: wobble2 1.4s ease-in-out infinite; }
+.giftbox.gold { filter: drop-shadow(0 0 18px #ffc93c); }
+@keyframes wobble2 { 0%, 60%, 100% { transform: rotate(0) scale(1); } 70% { transform: rotate(-8deg) scale(1.05); } 80% { transform: rotate(8deg) scale(1.05); } 90% { transform: rotate(-4deg); } }
+.sticker { position: relative; aspect-ratio: 1; border-radius: 18px; background: #fff; border: 3px dashed #e8dcc6; display: grid; place-items: center; font-size: 34px; }
+.sticker.missing { color: #cbbfa9; font-size: 22px; font-weight: 800; background: #faf5ec; }
+.sticker.gold:not(.missing) { background: linear-gradient(135deg, #fff1c7, #ffd84d); border: 3px solid #e0b400; }
+.sticker i { position: absolute; right: 4px; bottom: 2px; font-size: 12px; font-style: normal; font-weight: 800; color: var(--muted); }
+.sticker.big { width: 140px; margin: 6px auto 10px; font-size: 80px; border-style: solid; border-color: #ffd2c4; animation: pop .6s ease-out; }
+.stickergrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.extra { background: #ddeefa; border-radius: 16px; padding: 12px 14px; margin-top: 12px; font-size: 16px; }

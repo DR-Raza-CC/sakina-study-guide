@@ -394,9 +394,10 @@
       '<button class="tile" id="spell"><div class="emoji bg-teal">✏️</div><div><div class="t">Today\'s spellings</div><div class="s">' +
       (done ? "Done today! Come back tomorrow." : "Keep your streak going!") + (school ? " · " + school + " school words" : "") + "</div></div>" +
       (done ? '<span class="badge">✓ Done</span>' : "") + "</button>" +
-      (tricky ? '<button class="tile" id="tricky"><div class="emoji bg-coral">🎯</div><div><div class="t">Tricky words</div><div class="s">' + tricky + " words to practise</div></div></button>" : "") +
+      (tricky ? '<button class="tile" id="tricky"><div class="emoji bg-coral">🎯</div><div><div class="t">Tricky words</div><div class="s">' + tricky + " words to practise" + (streakFor("tricky") ? " · 🔥 " + streakFor("tricky") : "") + "</div></div></button>" : "") +
       '<button class="tile" id="book"><div class="emoji bg-sun">📖</div><div><div class="t">My book quiz</div><div class="s">Take a photo, answer 10 questions</div></div></button>' +
-      '<button class="tile" id="nums"><div class="emoji bg-sky">🔢</div><div><div class="t">Number families</div><div class="s">➕ Level ' + (add.level + 1) + " · ✖️ Level " + (mult.level + 1) + "</div></div></button>" +
+      '<button class="tile" id="nums"><div class="emoji bg-sky">🔢</div><div><div class="t">Number families</div><div class="s">➕ Level ' + (add.level + 1) + " · ✖️ Level " + (mult.level + 1) + (streakFor("nums") ? " · 🔥 " + streakFor("nums") : "") + "</div></div></button>" +
+      '<button class="tile" id="stk"><div class="emoji bg-sun">📒</div><div><div class="t">My sticker book</div><div class="s">' + Object.keys(S.prog.stickers || {}).length + " stickers · keep a streak to win more!</div></div></button>" +
       petsStrip() +
       '<p class="muted center">' + mastered + " words mastered so far 🏆</p>";
     on("#out", "click", function () { if (confirm("Sign out?")) signOut(); });
@@ -405,6 +406,7 @@
     on("#book", "click", function () { go("book"); });
     on("#nums", "click", function () { go("numbers"); });
     wirePetsStrip();
+    on("#stk", "click", function () { go("stickers", { back: function () { go("home"); } }); });
     $$("[data-hw]").forEach(function (b) { b.addEventListener("click", function () { go("hwHub", b.getAttribute("data-hw")); }); });
   };
   function greeting() {
@@ -575,6 +577,7 @@
       if (st > (S.prog.best || 0)) { S.prog.best = st; newBest = st > 1; }
       save(true);
     }
+    var gift = SP.mode === "daily" ? giftCheck("spell") : SP.tricky ? giftCheck("tricky") : null;
     var st2 = streak();
     var pct = total ? score / total : 0;
     var badge = [30, 14, 7, 3].find(function (n) { return st2 === n; });
@@ -583,11 +586,14 @@
       '<div class="score">' + score + " / " + total + "</div>" +
       "<p>" + (pct === 1 ? "Perfect! Every word right first time!" : pct >= 0.7 ? "Great spelling!" : "Good try! Practice makes progress.") + "</p>" +
       (SP.mode === "daily" ? '<p><b>🔥 ' + st2 + " day streak!</b>" + (newBest ? " That's your best ever!" : "") + "</p>" : "") +
+      (SP.tricky ? '<p><b>🔥 ' + streakFor("tricky") + " day tricky words streak!</b></p>" : "") +
       (badge && SP.mode === "daily" ? '<div class="tipbox">🏅 You earned the <b>' + badge + "-day streak</b> badge!</div>" : "") +
       (SP.wrongWords.length ? '<p style="margin-top:14px">These words will come back tomorrow:</p><div class="chips" style="justify-content:center">' +
         SP.wrongWords.map(function (k) { return '<span class="chip bad">' + esc(wordInfo(k).word) + "</span>"; }).join("") + "</div>" : "") +
-      '<div style="height:16px"></div><button class="btn block" id="home">Back home</button></div>';
+      giftButton(gift) +
+      '<div style="height:12px"></div><button class="btn block' + (gift && !gift.none ? " ghost" : "") + '" id="home">Back home</button></div>';
     on("#home", "click", function () { go("home"); });
+    wireGift(gift, function () { go("home"); });
   };
 
   // ---------------- book quiz ----------------
@@ -893,15 +899,18 @@
     }
     var d = dayRec(); d.maths = (d.maths || []).concat([{ kind: kind, level: FT.level, score: FT.score }]);
     save(true);
+    var gift = giftCheck("nums");
     var need = FT.score >= 9 && !unlocked && FT.level === m.unlocked && m.unlocked < LEVELS[kind].length - 1 ? 2 - (m.passes[FT.level] || 0) : 0;
     $app.innerHTML = topbar("Finished!", false) +
       '<div class="card center"><div class="celebrate">' + (unlocked ? "🔓" : FT.score >= 9 ? "🌟" : FT.score >= 6 ? "👍" : "💪") + '</div><div class="score">' + FT.score + " / 10</div>" +
       (unlocked ? "<p><b>New level unlocked: " + esc(LEVELS[kind][m.level].name) + "!</b></p>" : "") +
       (need > 0 ? "<p>One more score of 9 or 10 to unlock the next level!</p>" : "") +
       (FT.score < 6 ? "<p>Try the 💡 Learn page, then have another go.</p>" : "") +
+      '<p><b>🔥 ' + streakFor("nums") + " day number families streak!</b></p>" + giftButton(gift) + '<div style="height:12px"></div>' +
       '<div class="row"><button class="btn ghost" id="again" style="flex:1">Again</button><button class="btn" id="back2" style="flex:1">Done</button></div></div>';
     on("#again", "click", function () { go("famTest", kind); });
     on("#back2", "click", function () { go("numbers"); });
+    wireGift(gift, function () { go("numbers"); });
   };
 
   // ---------------- parent ----------------
@@ -2459,6 +2468,111 @@
     img.onload = function () { draw(0); };
     draw(0);
   };
+
+  // ----- streak surprises and sticker book -----
+  var STREAKS = {
+    spell: { name: "spelling", emoji: "✏️" },
+    tricky: { name: "tricky words", emoji: "🎯" },
+    nums: { name: "number families", emoji: "🔢" }
+  };
+  var STICKERS = [
+    ["🦄", "Unicorn"], ["🐬", "Dolphin"], ["🦋", "Butterfly"], ["🌈", "Rainbow"], ["🍩", "Doughnut"], ["🚀", "Rocket"],
+    ["🦖", "T-rex"], ["🐼", "Panda"], ["🌻", "Sunflower"], ["🍓", "Strawberry"], ["🎈", "Balloon"], ["🐙", "Octopus"],
+    ["🦉", "Owl"], ["🐢", "Turtle"], ["🍉", "Watermelon"], ["⚽", "Football"], ["🎨", "Paints"], ["🧁", "Cupcake"],
+    ["🐝", "Bee"], ["🦊", "Fox"], ["🌙", "Moon"], ["🪐", "Planet"], ["🐳", "Whale"], ["🦜", "Parrot"],
+    ["🍦", "Ice cream"], ["🚲", "Bike"], ["🐞", "Ladybird"], ["🦔", "Hedgehog"], ["🎠", "Carousel"], ["🐧", "Penguin"]
+  ];
+  var GOLD = [["🏆", "Golden trophy"], ["👑", "Golden crown"], ["💎", "Super diamond"], ["🥇", "Gold medal"], ["🌟", "Superstar"], ["🐉", "Golden dragon"]];
+  var MILESTONES = [3, 5, 7, 10, 14, 21, 30, 50, 75, 100];
+  var EXTRAS = [
+    ["😂", "Why did the teddy bear say no to pudding? Because she was stuffed!"],
+    ["😂", "What do you call a sleeping dinosaur? A dino-snore!"],
+    ["😂", "Why is 6 afraid of 7? Because 7, 8, 9!"],
+    ["😂", "What has hands but can't clap? A clock!"],
+    ["😂", "Why can't a bicycle stand up on its own? Because it's two-tyred!"],
+    ["😂", "What do elves learn at school? The elf-abet!"],
+    ["😂", "How do you make an octopus laugh? With ten-tickles!"],
+    ["😂", "What did one plate say to the other? Lunch is on me!"],
+    ["🤓", "Fun fact: a group of flamingos is called a flamboyance!"],
+    ["🤓", "Fun fact: an octopus has three hearts!"],
+    ["🤓", "Fun fact: butterflies taste things with their feet!"],
+    ["🤓", "Fun fact: sea otters hold hands when they sleep so they don't float apart."],
+    ["🤓", "Fun fact: bananas are berries, but strawberries aren't!"],
+    ["🤓", "Fun fact: honey can stay good to eat for thousands of years."]
+  ];
+  function streakFor(key) {
+    var d = today();
+    if (!(S.prog.days[d] && S.prog.days[d][key])) d = addDays(d, -1);
+    var n = 0;
+    while (S.prog.days[d] && S.prog.days[d][key]) { n++; d = addDays(d, -1); }
+    return n;
+  }
+  // Called when an activity is finished. Marks today and returns a surprise
+  // the first time each day that a streak of 2 or more days is kept going.
+  function giftCheck(key) {
+    var d = dayRec();
+    if (!d[key]) d[key] = true;
+    d.gift = d.gift || {};
+    if (d.gift[key]) return null;
+    var st = streakFor(key);
+    S.prog.bests = S.prog.bests || {};
+    if (st > (S.prog.bests[key] || 0)) S.prog.bests[key] = st;
+    if (st < 2) { save(); return { key: key, streak: st, none: true }; }
+    d.gift[key] = 1; save();
+    return { key: key, streak: st };
+  }
+  function giftButton(g) {
+    if (!g) return "";
+    if (g.none) return '<div class="tipbox" style="margin-top:12px">🔥 You started a <b>' + STREAKS[g.key].name + ' streak</b>! Come back tomorrow to keep it going, and a surprise 🎁 will be waiting.</div>';
+    return '<button class="btn block gift" id="gift">🎁 Open your streak surprise!</button>';
+  }
+  function wireGift(g, back) { on("#gift", "click", function () { go("surprise", { g: g, back: back }); }); }
+  VIEWS.surprise = function (o) {
+    var g = o.g, S2 = STREAKS[g.key], mile = MILESTONES.indexOf(g.streak) >= 0;
+    $app.innerHTML = topbar("Surprise! 🎁", false) +
+      '<div class="card center"><p><b>🔥 ' + g.streak + " day " + S2.name + " streak!</b><br>You kept it going. Tap the box to open it!</p>" +
+      '<button class="giftbox ' + (mile ? "gold" : "") + '" id="box" aria-label="Open the surprise">🎁</button></div>';
+    on("#box", "click", function () {
+      S.prog.stickers = S.prog.stickers || {};
+      var have = S.prog.stickers, st;
+      if (mile) st = pick(GOLD);
+      else {
+        var fresh = STICKERS.filter(function (s) { return !have[s[0]]; });
+        st = fresh.length && Math.random() < 0.75 ? pick(fresh) : pick(STICKERS);
+      }
+      var isNew = !have[st[0]];
+      have[st[0]] = (have[st[0]] || 0) + 1;
+      var bonus = mile ? g.streak : 1;
+      S.prog.stars = (S.prog.stars || 0) + bonus;
+      var extra = pick(EXTRAS);
+      save(true);
+      $app.innerHTML = topbar("Surprise! 🎁", false) +
+        '<div class="card center"><div class="confetti">🎉 ✨ ⭐ ✨ 🎉</div>' +
+        '<div class="sticker big ' + (mile ? "gold" : "") + '">' + st[0] + "</div>" +
+        "<h2>" + (mile ? "A golden sticker!" : isNew ? "A new sticker!" : "Another one!") + "</h2><p><b>" + st[1] + "</b> " + (isNew ? "is going in your sticker book." : "– you've got " + have[st[0]] + " now!") + "</p>" +
+        (mile ? '<div class="tipbox">🏅 <b>' + g.streak + "-day streak!</b> That's amazing. +" + bonus + " bonus stars ⭐</div>" : '<p class="muted">+1 star ⭐</p>') +
+        '<div class="extra">' + extra[0] + " " + esc(extra[1]) + "</div>" +
+        '<div class="row" style="margin-top:14px"><button class="btn ghost" id="book" style="flex:1">📒 Sticker book</button><button class="btn" id="cont" style="flex:1">Continue →</button></div></div>';
+      speak(mile ? "Wow! A golden sticker!" : isNew ? "A new sticker! " + st[1] : "Another " + st[1] + " sticker!", 0.95);
+      on("#book", "click", function () { go("stickers", { back: o.back }); });
+      on("#cont", "click", o.back);
+    });
+  };
+  VIEWS.stickers = function (o) {
+    var have = S.prog.stickers || {}, back = (o && o.back) || function () { go("home"); };
+    var got = STICKERS.concat(GOLD).filter(function (s) { return have[s[0]]; }).length;
+    var bests = S.prog.bests || {};
+    $app.innerHTML = topbar("My sticker book 📒", true) +
+      '<div class="card"><p>Keep a streak going for 2 days or more to win a sticker. Golden stickers come at 3, 5, 7, 10, 14, 21 and 30 days!</p>' +
+      '<div class="chips">' + Object.keys(STREAKS).map(function (k) { return '<span class="chip">' + STREAKS[k].emoji + " " + STREAKS[k].name + ": 🔥 " + streakFor(k) + (bests[k] ? " (best " + bests[k] + ")" : "") + "</span>"; }).join("") + "</div></div>" +
+      '<div class="card"><h3>Golden stickers</h3><div class="stickergrid">' + GOLD.map(function (s) { return stickerCell(s, have, true); }).join("") + "</div></div>" +
+      '<div class="card"><h3>Stickers · ' + got + " of " + (STICKERS.length + GOLD.length) + '</h3><div class="stickergrid">' + STICKERS.map(function (s) { return stickerCell(s, have, false); }).join("") + "</div></div>";
+    wireBack(back);
+  };
+  function stickerCell(s, have, gold) {
+    var n = have[s[0]];
+    return '<div class="sticker ' + (gold ? "gold " : "") + (n ? "" : "missing") + '" title="' + s[1] + '">' + (n ? s[0] : "?") + (n > 1 ? "<i>×" + n + "</i>" : "") + "</div>";
+  }
 
   // ----- review: earlier weeks' spellings and maths keep coming back -----
   var _hwWords = null;

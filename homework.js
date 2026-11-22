@@ -32,27 +32,31 @@ window.HOMEWORK = [
         ],
         pairs: [["berry", "bury"], ["brake", "break"], ["meet", "meat"], ["ball", "bawl"], ["fair", "fare"]],
         hints: { berry: "a small juicy fruit", bury: "hide something under the ground", brake: "makes a bike or car stop", "break": "smash or crack something (or a rest time)", meet: "get together with someone", meat: "food that comes from animals", ball: "a round toy to throw or kick", bawl: "cry very loudly", fair: "treating everyone the same (or a funfair!)", fare: "the money you pay to ride a bus or train" },
-        paper: "Now write each word 10 times in your homework book, then ask a grown-up to test you."
+        practice: "Listen to each word and spell it. Then try the bonus game!",
+        paper: "Write each word 10 times. Then ask a grown-up to test you."
       },
       {
         id: "times", type: "times", emoji: "✖️", colour: "sky",
         title: "Maths: times tables sheet",
         sub: "All 95 questions, in 5 rounds",
         facts: [[6, 12], [10, 4], [10, 7], [4, 2], [8, 11], [9, 8], [5, 7], [6, 11], [5, 3], [9, 9], [12, 6], [8, 5], [12, 12], [12, 5], [6, 8], [4, 3], [2, 8], [8, 9], [12, 11], [7, 11], [3, 11], [11, 9], [3, 2], [6, 9], [2, 12], [4, 12], [4, 9], [5, 3], [11, 3], [12, 8], [10, 2], [4, 5], [8, 2], [10, 10], [6, 9], [9, 4], [5, 6], [7, 10], [2, 3], [7, 2], [7, 4], [2, 7], [2, 12], [10, 5], [10, 6], [3, 6], [3, 12], [6, 7], [6, 11], [1, 6], [3, 10], [11, 4], [7, 9], [1, 8], [12, 3], [8, 6], [7, 12], [2, 10], [6, 2], [4, 7], [9, 6], [3, 5], [4, 8], [6, 5], [7, 6], [9, 8], [5, 5], [10, 3], [8, 3], [6, 3], [4, 9], [10, 11], [9, 10], [4, 11], [8, 6], [5, 12], [2, 7], [2, 10], [12, 10], [9, 7], [5, 2], [6, 4], [5, 11], [2, 11], [10, 1], [4, 12], [3, 9], [2, 6], [6, 3], [9, 10], [7, 3], [10, 6], [2, 3], [7, 5], [1, 4]],
-        paper: "Now fill in the times tables sheet. You've practised every one!"
+        practice: "Answer 20 questions from your times tables sheet.",
+        paper: "Fill in your whole times tables sheet."
       },
       {
         id: "hand", type: "handwriting", emoji: "🖊️", colour: "coral",
         title: "English: handwriting",
         sub: "Tall letters, tails and neat sizing",
         paragraph: "A good friend is kind, caring and helpful. Friends play together, share ideas and make each other smile. They listen when someone is talking and help each other when things are difficult. Having good friends makes school a happy place to learn and have fun.",
-        paper: "Copy the paragraph into your book in your neatest joined handwriting."
+        practice: "Learn tall letters and tails, then look at the paragraph.",
+        paper: "Copy this paragraph in your neatest handwriting."
       },
       {
         id: "stone", type: "stoneage", emoji: "🔥", colour: "plum",
         title: "History: Stone Age survival",
         sub: "Draw and label a Palaeolithic person",
-        paper: "Draw your Palaeolithic person in your book and label at least 3 things that helped them survive."
+        practice: "Learn 5 things that helped Stone Age people survive.",
+        paper: "Draw a Stone Age person. Label at least 3 things that helped them survive."
       },
       {
         id: "day", type: "commissioner", emoji: "🌍", colour: "sun",
@@ -60,7 +64,8 @@ window.HOMEWORK = [
         sub: "What would you change for children?",
         example: "I would make sure every child has a safe and happy place to play after school because it helps children have fun, make friends and stay healthy.",
         ideas: ["make more parks and safe play areas", "give every child a free healthy breakfast at school", "build safe cycle lanes to every school", "open more libraries with lots of books", "plant more trees to keep the air clean", "make sure every child can learn to swim", "have a kindness week in every school"],
-        paper: "Write your change and why in your book. Talk to your family about what you did on World Children's Day!"
+        practice: "Think of one change you would make for children, and why.",
+        paper: "Write your change and why. Then tell your family what you did on World Children's Day."
       }
     ]
   },

@@ -397,3 +397,51 @@ details summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 .sticker.big { width: 140px; margin: 6px auto 10px; font-size: 80px; border-style: solid; border-color: #ffd2c4; animation: pop .6s ease-out; }
 .stickergrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .extra { background: #ddeefa; border-radius: 16px; padding: 12px 14px; margin-top: 12px; font-size: 16px; }
+
+/* Homework redesign: jobs with two clear steps */
+.howto { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; border: 2px solid var(--line); border-radius: 18px; padding: 10px; margin-bottom: 14px; }
+.howto > div:not(.arr) { display: flex; flex-direction: column; align-items: center; min-width: 96px; }
+.howto span { font-size: 26px; }
+.howto b { font-size: 16px; }
+.howto small { color: var(--muted); font-size: 13px; }
+.howto .arr { font-size: 26px; font-weight: 800; color: var(--coral); }
+.job { position: relative; display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: var(--card); border: 3px solid var(--mb); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; box-shadow: var(--shadow); }
+.job:active { transform: translateY(2px); }
+.job.next { border-color: var(--mc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--mc) 25%, transparent), var(--shadow); }
+.job.done { background: #f6fcf8; border-color: #bfe8cf; }
+.job .ribbon { position: absolute; top: -12px; right: 14px; background: var(--coral); color: #fff; font-weight: 800; font-size: 14px; padding: 3px 12px; border-radius: 999px; box-shadow: 0 3px 0 #d65d3f; }
+.job .jtop { display: flex; align-items: center; gap: 12px; }
+.job .jnum { width: 34px; height: 34px; border-radius: 50%; background: var(--mc); color: #fff; font-weight: 800; display: grid; place-items: center; flex-shrink: 0; }
+.job.done .jnum { background: #fff1c7; }
+.job .memoji { width: 52px; height: 52px; border-radius: 16px; background: var(--mb); display: grid; place-items: center; font-size: 28px; flex-shrink: 0; }
+.job .t { font-weight: 800; font-size: 19px; line-height: 1.2; }
+.job .s { color: var(--muted); font-size: 14px; }
+.job .jsteps { display: flex; gap: 8px; margin-top: 10px; }
+.job .jsteps span { flex: 1; text-align: center; border-radius: 12px; padding: 6px 4px; font-weight: 700; font-size: 15px; background: #f6efe2; color: var(--muted); }
+.job .jsteps span.on { background: var(--good-bg); color: #13784a; }
+.job.bonusjob { --mb: #e6dccb; border-style: dashed; background: #fffdf8; }
+.job.bonusjob .mgo { width: 34px; height: 34px; border-radius: 50%; background: #f1e8d8; display: grid; place-items: center; font-weight: 800; }
+.stepcard { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); border: 3px solid #d9f2ee; }
+.stepcard.s2 { border-color: #ffd2c4; background: #fffaf6; }
+.stepcard.done { border-color: #bfe8cf; background: #f6fcf8; }
+.stepcard .sh { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.stepcard .sh b { display: block; font-size: 19px; }
+.stepcard .sh small { color: var(--muted); font-size: 14px; }
+.stepcard .sn { width: 40px; height: 40px; border-radius: 50%; background: var(--teal); color: #fff; font-weight: 800; font-size: 20px; display: grid; place-items: center; flex-shrink: 0; }
+.stepcard.s2 .sn { background: var(--coral); }
+.stepcard .sok { margin-left: auto; background: var(--good-bg); color: #13784a; font-weight: 800; font-size: 14px; border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+.stepdown { text-align: center; font-size: 26px; margin: 6px 0; }
+.nudge { color: #8a6a00; background: #fff6dc; border-radius: 12px; padding: 8px 10px; font-size: 15px; }
+.paperwords { margin: 4px 0 10px; }
+.paperwords .chip { font-size: 17px; background: #fff; border: 2px solid #ffd2c4; }
+.papersums { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 4px 0 10px; font-size: 18px; font-weight: 700; }
+.papersums small { color: var(--muted); font-weight: 600; }
+.paperpara { background: #fff; border: 2px dashed #ffd2c4; border-radius: 14px; padding: 10px 12px; font-size: 17px; line-height: 1.6; }
+.paper.big { font-size: 17px; text-align: center; background: #fff1ea; border-color: #ffb39f; }
+.big2 { font-size: 18px; font-weight: 700; }
+.survive { display: grid; grid-template-columns: 30px 1fr; gap: 0 8px; margin: 0 0 10px; font-size: 16px; }
+.survive span { font-size: 22px; grid-row: span 2; }
+.eggcard.compact { display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+.eggcard.compact .eggbox { width: 78px; flex-shrink: 0; margin: 0; }
+.eggcard.compact .eggdots { justify-content: flex-start; }

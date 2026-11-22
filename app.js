@@ -476,7 +476,7 @@
           ? '<button class="btn block" id="cover">Cover it 🙈</button>'
           : '<input class="spellinput" id="inp" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type it here"><div id="fb"></div><div style="height:12px"></div><button class="btn block" id="check">Check ✓</button>') +
         "</div>";
-      wireBack(function () { if (SP.hw) go("hwHub", SP.hw.hwId); else go("home"); });
+      wireBack(function () { if (SP.hw) go("job", SP.hw.ctx); else go("home"); });
       on("#say", "click", function () { speakWord(item); });
       if (stage === "look") {
         on("#cover", "click", function () { stage = "write"; render(); setTimeout(function () { var i = $("#inp"); if (i) i.focus(); }, 50); });
@@ -524,7 +524,7 @@
       (item.sentence ? '<p class="sentence">' + blankSentence(item.sentence, item.word) + "</p>" : '<p class="sentence">Spell the word you hear.</p>') +
       '<input class="spellinput" id="inp" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type the word">' +
       '<div id="fb"></div><div style="height:12px"></div><button class="btn block" id="check">Check ✓</button></div>';
-    wireBack(function () { if (confirm("Stop the test? Your answers so far are saved.")) { save(true); if (SP.hw) go("hwHub", SP.hw.hwId); else go("home"); } });
+    wireBack(function () { if (confirm("Stop the test? Your answers so far are saved.")) { save(true); if (SP.hw) go("job", SP.hw.ctx); else go("home"); } });
     on("#say", "click", function () { speakWord(item); setTimeout(function () { var i = $("#inp"); if (i) i.focus(); }, 50); });
     setTimeout(function () { speakWord(item); var i = $("#inp"); if (i) i.focus(); }, 300);
 
@@ -1029,7 +1029,11 @@
   function hwById(id) { return (window.HOMEWORK || []).find(function (h) { return h.id === id; }); }
   function hwState(hwId) { S.prog.hw = S.prog.hw || {}; return S.prog.hw[hwId] || (S.prog.hw[hwId] = {}); }
   function mState(hwId, mId) { var h = hwState(hwId); return h[mId] || (h[mId] = {}); }
-  function hwDoneCount(hw, st) { return hwMissions(hw).filter(function (m) { return st && st[m.id] && st[m.id].done; }).length; }
+  // A homework job has two steps: practise in the app (ms.done) and do it on paper (ms.paper).
+  // The job only counts as finished once it is done on paper.
+  // Weeks handed in before the paper step existed count as done on paper once practised.
+  function onPaper(hw, ms) { return !!(ms && (ms.paper || (ms.done && hw.due < "2026-11-22"))); }
+  function hwDoneCount(hw, st) { return hwMissions(hw).filter(function (m) { return st && onPaper(hw, st[m.id]); }).length; }
   function daysUntil(d) { return Math.round((new Date(d + "T12:00") - new Date(today() + "T12:00")) / 86400000); }
   function dueText(due) {
     var n = daysUntil(due);
@@ -1039,7 +1043,7 @@
     return activeHomework().map(function (hw) {
       var st = (S.prog.hw || {})[hw.id], d = hwDoneCount(hw, st), n = hwMissions(hw).length;
       return '<button class="tile hwtile" data-hw="' + esc(hw.id) + '"><div class="emoji bg-plum">📝</div><div style="flex:1"><div class="t">Homework: ' + esc(hw.title) + '</div><div class="s">' + dueText(hw.due) + "</div>" +
-        '<div class="hwdots">' + hwMissions(hw).map(function (m) { return '<span class="' + (st && st[m.id] && st[m.id].done ? "on" : "") + '">' + m.emoji + "</span>"; }).join("") + "</div></div>" +
+        '<div class="hwdots">' + hwMissions(hw).map(function (m) { return '<span class="' + (st && onPaper(hw, st[m.id]) ? "on" : "") + '">' + m.emoji + "</span>"; }).join("") + "</div></div>" +
         (d === n ? '<span class="badge">⭐ Done</span>' : '<span class="badge" style="background:#ebe3f6;color:#5d4583">' + d + "/" + n + "</span>") + "</button>";
     }).join("");
   }
@@ -1047,26 +1051,65 @@
   VIEWS.hwHub = function (hwId) {
     var hw = hwById(hwId); if (!hw) return go("home");
     var st = hwState(hwId), d = hwDoneCount(hw, st), n = hwMissions(hw).length;
+    var nextId = (hwMissions(hw).find(function (m) { return !(st[m.id] && st[m.id].paper); }) || {}).id;
+    var bonus = hwBonus(hw);
     $app.innerHTML = topbar("My homework", true) +
       '<div class="hwhead"><div class="t">📝 ' + esc(hw.title) + "</div><div>" + dueText(hw.due) + "</div>" +
-      '<div class="progressbar light"><div style="width:' + Math.round(d / n * 100) + '%"></div></div><div class="small">' + d + " of " + n + " missions done" + (d === n ? " 🎉" : "") + "</div></div>" +
+      '<div class="progressbar light"><div style="width:' + Math.round(d / n * 100) + '%"></div></div><div class="small">' + d + " of " + n + " jobs done on paper" + (d === n ? " 🎉" : "") + "</div></div>" +
       eggCard(hw, st, d, n) +
-      (d === n ? '<div class="tipbox" style="margin-bottom:14px">🏆 <b>Homework hero!</b> Check it is all written in your book, then pack it in your bag.</div>' : "") +
+      (d === n ? '<div class="tipbox" style="margin-bottom:14px">🏆 <b>Homework hero!</b> Pack your homework book in your bag.</div>' : "") +
       hwMissions(hw).map(function (m, i) {
-        var c = COLOURS[m.colour] || COLOURS.teal, ms = st[m.id] || {};
-        return '<button class="mission ' + (ms.done ? "done" : "") + '" data-m="' + esc(m.id) + '" style="--mc:' + c[1] + ";--mb:" + c[0] + '">' +
-          '<div class="memoji">' + m.emoji + '</div><div style="flex:1"><div class="t">' + esc(m.title) + '</div><div class="s">' + esc(m.sub) + "</div></div>" +
-          '<div class="mgo">' + (ms.done ? "⭐" : i + 1) + "</div></button>";
-      }).join("");
+        var c = COLOURS[m.colour] || COLOURS.teal, ms = st[m.id] || {}, isNext = m.id === nextId;
+        return '<button class="job ' + (ms.paper ? "done " : "") + (isNext ? "next" : "") + '" data-m="' + esc(m.id) + '" style="--mc:' + c[1] + ";--mb:" + c[0] + '">' +
+          (isNext ? '<div class="ribbon">Start here 👉</div>' : "") +
+          '<div class="jtop"><div class="jnum">' + (ms.paper ? "⭐" : i + 1) + '</div><div class="memoji">' + m.emoji + '</div><div style="flex:1"><div class="t">' + esc(m.title) + '</div><div class="s">15 minutes</div></div></div>' +
+          '<div class="jsteps"><span class="' + (ms.done ? "on" : "") + '">' + (ms.done ? "✓" : "📱") + " Practise</span><span class=\"" + (ms.paper ? "on" : "") + '">' + (ms.paper ? "✓" : "✏️") + " On paper</span></div></button>";
+      }).join("") +
+      (bonus ? '<button class="job bonusjob" data-bonus="1"><div class="jtop"><div class="memoji">' + bonus.emoji + '</div><div style="flex:1"><div class="t">Bonus: ' + bonus.title + '</div><div class="s">Not homework · just for extra stars</div></div><div class="mgo">›</div></div></button>' : "");
     wireBack(function () { go("home"); });
     on("#hatch", "click", function () { go("hatch", hwId); });
     on("#play", "click", function () { go("petGame", { pet: petFor(hwId).id, name: (st.pet && st.pet.name) || "My pet", back: function () { go("hwHub", hwId); } }); });
+    on("[data-bonus]", "click", function () { go("hw_review", { hw: hw, m: bonus }); });
     $$("[data-m]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var m = hwMissions(hw).find(function (x) { return x.id === b.getAttribute("data-m"); });
-        go("hw_" + m.type, { hw: hw, m: m });
-      });
+      b.addEventListener("click", function () { go("job", { hw: hw, m: hwMissions(hw).find(function (x) { return x.id === b.getAttribute("data-m"); }) }); });
     });
+  };
+  function realMission(ctx) { return hwMissions(ctx.hw).find(function (x) { return x.id === ctx.m.id; }) || ctx.m; }
+  function paperDetail(m) {
+    var h = "";
+    if (m.type === "spelling") h += '<div class="chips paperwords">' + m.words.map(function (w) { return '<span class="chip">' + esc(w[0]) + "</span>"; }).join("") + "</div>";
+    if (m.type === "colsub" || m.type === "coladd") h += '<div class="papersums">' + m.sums.map(function (x, i) { return "<span><small>" + (i + 1) + ".</small> " + x[0] + (m.type === "coladd" ? " + " : " − ") + x[1] + " =</span>"; }).join("") + "</div>";
+    if (m.type === "handwriting") h += '<p class="paperpara">' + esc(m.paragraph) + "</p>";
+    return h;
+  }
+  VIEWS.job = function (ctx) {
+    ctx = { hw: ctx.hw, m: realMission(ctx) };
+    var m = ctx.m, ms = mState(ctx.hw.id, m.id);
+    $app.innerHTML = topbar(m.emoji + " " + m.title, true) +
+      '<p class="center muted" style="margin:-6px 0 12px">About 15 minutes · 2 steps</p>' +
+      '<div class="stepcard s1 ' + (ms.done ? "done" : "") + '"><div class="sh"><span class="sn">1</span><div><b>📱 Practise here</b><small>about 5 minutes</small></div>' + (ms.done ? '<span class="sok">✓ Done</span>' : "") + "</div>" +
+      "<p>" + esc(m.practice || m.sub) + "</p>" +
+      '<button class="btn block ' + (ms.done ? "ghost" : "") + '" id="prac">' + (ms.done ? "Practise again ↻" : "Start practising ▶") + "</button></div>" +
+      '<div class="stepdown">⬇️</div>' +
+      '<div class="stepcard s2 ' + (ms.paper ? "done" : "") + '"><div class="sh"><span class="sn">2</span><div><b>✏️ Now do it on paper</b><small>about 10 minutes · in your homework book</small></div>' + (ms.paper ? '<span class="sok">✓ Done</span>' : "") + "</div>" +
+      "<p><b>" + esc(m.paper || "Do this part of your homework in your book.") + "</b></p>" + paperDetail(m) +
+      '<p class="muted">When you have finished, show a grown-up.</p>' +
+      (ms.paper ? '<button class="btn block ghost" id="unpaper">Oops, not finished yet</button>'
+        : (!ms.done ? '<p class="nudge">Tip: do step 1 first, so you are ready!</p>' : "") + '<button class="btn block sun" id="paper">I\'ve done it on paper ✓</button>') +
+      "</div>";
+    wireBack(function () { go("hwHub", ctx.hw.id); });
+    on("#prac", "click", function () { go("hw_" + m.type, ctx); });
+    on("#paper", "click", function () {
+      ms.paper = true; ms.paperDate = today();
+      S.prog.stars = (S.prog.stars || 0) + 3; save(true);
+      var st = hwState(ctx.hw.id), d = hwDoneCount(ctx.hw, st), n = hwMissions(ctx.hw).length;
+      $app.innerHTML = topbar("Well done! ⭐", false) + '<div class="card center"><div class="celebrate">✏️</div><h2>Brilliant work!</h2><p><b>' + esc(m.title) + "</b> is finished. +3 stars ⭐</p>" +
+        '<p class="big2">' + (d === n ? "That's all your homework! Your egg is ready to hatch! 🥚" : d + " of " + n + " jobs done. Your egg grew! 🥚") + "</p>" +
+        '<button class="btn block sun" id="hub">' + (d === n ? "Hatch my egg 🐣" : "Next job →") + "</button></div>";
+      speak("Brilliant work!", 0.95);
+      on("#hub", "click", function () { go("hwHub", ctx.hw.id); });
+    });
+    on("#unpaper", "click", function () { ms.paper = false; save(true); go("job", ctx); });
   };
   function finishMission(ctx, data, stars) {
     var ms = mState(ctx.hw.id, ctx.m.id);
@@ -1078,38 +1121,33 @@
     save(true);
   }
   function missionDone(ctx, html) {
-    $app.innerHTML = topbar("Mission complete!", false) +
+    var bonus = ctx.m.type === "review";
+    $app.innerHTML = topbar(bonus ? "Bonus done! ⭐" : "Practice done! ⭐", false) +
       '<div class="card center"><div class="celebrate">' + ctx.m.emoji + "</div>" + html +
-      (ctx.m.paper ? '<div class="paper">✍️ ' + esc(ctx.m.paper) + "</div>" : "") +
-      '<div style="height:14px"></div><button class="btn block" id="hub">Back to my homework</button></div>';
-    on("#hub", "click", function () { go("hwHub", ctx.hw.id); });
+      (bonus ? '<div style="height:14px"></div><button class="btn block" id="hub">Back to my homework</button>'
+        : '<div class="paper big">✏️ <b>Step 2:</b> now do it on paper in your homework book.</div><div style="height:12px"></div><button class="btn block sun" id="hub">Go to step 2 ✏️</button>') + "</div>";
+    on("#hub", "click", function () { if (bonus) go("hwHub", ctx.hw.id); else go("job", ctx); });
   }
   function mTop(ctx, extra) { return topbar(ctx.m.emoji + " " + (extra || ctx.m.title), true); }
-  function backToHub(ctx) { wireBack(function () { go("hwHub", ctx.hw.id); }); }
+  function backToHub(ctx) { wireBack(function () { if (ctx.m.type === "review") go("hwHub", ctx.hw.id); else go("job", ctx); }); }
   function focusSoon(sel) { setTimeout(function () { var i = $(sel); if (i) i.focus(); }, 60); }
 
   // ----- spelling mission -----
   VIEWS.hw_spelling = function (ctx) {
     var ms = mState(ctx.hw.id, ctx.m.id);
-    $app.innerHTML = mTop(ctx) +
-      '<div class="tipbox" style="margin-bottom:14px"><b>Spelling rule</b><br>' + esc(ctx.m.tip) + "</div>" +
-      '<div class="card"><div class="chips" style="justify-content:center">' + ctx.m.words.map(function (w) {
+    $app.innerHTML = mTop(ctx, "Practise") +
+      '<div class="tipbox" style="margin-bottom:14px">💡 ' + esc(ctx.m.tip) + "</div>" +
+      '<div class="card center"><p><b>Your ' + ctx.m.words.length + ' words.</b> Tap one to hear it.</p><div class="chips" style="justify-content:center">' + ctx.m.words.map(function (w) {
         return '<button class="chip big say" data-w="' + esc(w[0]) + '">' + (ctx.m.mark ? esc(w[0]).replace(ctx.m.mark, "<u>" + ctx.m.mark + "</u>") : esc(w[0])) + "</button>";
-      }).join("") + '</div><p class="muted center" style="margin-top:8px">Tap a word to hear it</p>' +
-      '<div class="steps"><div><b>1</b> Look, write, check each word</div><div><b>2</b> Grown-up test with all ' + ctx.m.words.length +
-      (reviewWords(ctx.hw, []).length ? ", plus " + reviewWords(ctx.hw, []).length + " words from earlier weeks 🔁" : "") + "</div></div>" +
-      (ms.done ? '<p class="center"><b>Best test score: ' + (ms.best || ms.score) + " / " + ms.total + "</b></p>" : "") +
-      '<button class="btn block" id="learn">Look, write, check 👀</button><div style="height:10px"></div>' +
-      '<button class="btn block sun" id="test">Straight to the test 🎧</button>' +
-      (ctx.m.pairs ? '<div style="height:10px"></div><button class="btn block plum" id="pairs">Which one? game 🤔' + (ms.pairs != null ? " (best " + ms.pairs + ")" : "") + "</button>" : "") + "</div>";
+      }).join("") + "</div>" +
+      '<div style="height:16px"></div><button class="btn block" id="test">Spelling test 🎧 (' + ctx.m.words.length + " words)</button>" +
+      (ms.score != null ? '<p class="muted" style="margin-top:8px">Best so far: ' + (ms.best || ms.score) + " / " + ms.total + "</p>" : "") + "</div>" +
+      (ctx.m.pairs ? '<button class="mission small" id="pairs" style="--mc:#7b5ea7;--mb:#ebe3f6"><div class="memoji">🤔</div><div style="flex:1"><div class="t">Bonus game: Which one?</div><div class="s">Sound-alike words' + (ms.pairs != null ? " · best " + ms.pairs : "") + '</div></div><div class="mgo">›</div></button>' : "");
     backToHub(ctx);
     on("#pairs", "click", function () { go("pairGame", { ctx: ctx }); });
     $$(".say").forEach(function (b) { b.addEventListener("click", function () { speak(b.getAttribute("data-w")); }); });
     var keys = ctx.m.words.map(function (w) { return wordKey(w[0]); });
-    var info = { hwId: ctx.hw.id, ctx: ctx };
-    var rev = reviewWords(ctx.hw, keys);
-    on("#learn", "click", function () { startSession({ mode: "hw", news: keys, items: shuffle(keys.concat(rev)), hw: info }); });
-    on("#test", "click", function () { startSession({ mode: "hw", news: [], items: shuffle(keys.concat(rev)), hw: info }); });
+    on("#test", "click", function () { startSession({ mode: "hw", news: [], items: shuffle(keys), hw: { hwId: ctx.hw.id, ctx: ctx } }); });
   };
   VIEWS.hwSpellDone = function () {
     var ctx = SP.hw.ctx, score = SP.score, total = SP.total;
@@ -1123,18 +1161,31 @@
 
   // ----- column subtraction mission -----
   var PLACE = ["ones", "tens", "hundreds"], PLACE1 = ["one", "ten", "hundred"];
+  // Practise 3 sums in the app: the ones with the most exchanging or carrying.
+  function practiceSums(m) {
+    var all = m.allSums || m.sums, add = m.type === "coladd";
+    var hard = function (x) {
+      var a = x[0], b = x[1], n = 0;
+      if (add) { if (a % 10 + b % 10 >= 10) n++; if (Math.floor(a / 10) % 10 + Math.floor(b / 10) % 10 + (a % 10 + b % 10 >= 10 ? 1 : 0) >= 10) n++; }
+      else { if (a % 10 < b % 10) n++; if (Math.floor(a / 10) % 10 - (a % 10 < b % 10 ? 1 : 0) < Math.floor(b / 10) % 10) n++; if (Math.floor(a / 10) % 10 === 0) n++; }
+      return n;
+    };
+    var idx = all.map(function (_, i) { return i; }).sort(function (i, j) { return hard(all[j]) - hard(all[i]) || i - j; }).slice(0, 3).sort(function (i, j) { return i - j; });
+    return idx.map(function (i) { return all[i]; });
+  }
+  function sumsCtx(ctx) { var m = realMission(ctx); return { hw: ctx.hw, m: Object.assign({}, m, { allSums: m.sums, sums: practiceSums(m) }) }; }
   VIEWS.hw_colsub = function (ctx) {
+    ctx = sumsCtx(ctx);
     var ms = mState(ctx.hw.id, ctx.m.id); ms.solved = ms.solved || {};
-    var n = ctx.m.sums.length, solved = Object.keys(ms.solved).length;
-    $app.innerHTML = mTop(ctx) +
-      '<div class="card"><h3>💡 What is exchanging?</h3><div class="exch"><div class="rod">10</div><div class="arrow">→</div><div class="ones">' + new Array(11).join("<i></i>") + "</div></div>" +
-      "<p>If the top number in a column is too small, take <b>1</b> from the column next door. <b>1 ten becomes 10 ones</b>, just like swapping a £10 note for ten £1 coins!</p>" +
-      '<p class="muted" style="margin:0">Always start with the <b>ones</b> on the right.</p></div>' +
-      '<div class="card"><h3>Pick a sum · ' + solved + " of " + n + ' done</h3><div class="sumgrid">' +
+    var n = ctx.m.sums.length, solved = Object.keys(ms.solved).filter(function (k) { return k < n; }).length;
+    $app.innerHTML = mTop(ctx, "Practise") +
+      '<div class="card"><h3>💡 Exchanging</h3><div class="exch"><div class="rod">10</div><div class="arrow">→</div><div class="ones">' + new Array(11).join("<i></i>") + "</div></div>" +
+      "<p>Top number too small? Take <b>1</b> from next door: <b>1 ten = 10 ones</b>. Always start with the <b>ones</b>.</p></div>" +
+      '<div class="card"><h3>Practise these 3 sums · ' + solved + " done</h3><div class=\"sumgrid\">" +
       ctx.m.sums.map(function (s, i) {
         var d = ms.solved[i];
         return '<button class="sumbtn ' + (d ? "done" : "") + '" data-i="' + i + '"><small>' + (i + 1) + "</small>" + s[0] + " − " + s[1] + (d ? "<span>" + (d.stars ? "⭐" : "✓") + "</span>" : "") + "</button>";
-      }).join("") + "</div></div>";
+      }).join("") + '</div><p class="muted" style="margin-top:10px">Then you\'ll do all ' + ctx.m.allSums.length + " on paper.</p></div>";
     backToHub(ctx);
     $$(".sumbtn").forEach(function (b) { b.addEventListener("click", function () { go("colsubDo", { ctx: ctx, i: +b.getAttribute("data-i") }); }); });
   };
@@ -1224,7 +1275,7 @@
         if (nx != null) return go("colsubDo", { ctx: ctx, i: nx });
         var stars = Object.keys(ms.solved).filter(function (k) { return ms.solved[k].stars; }).length;
         finishMission(ctx, {}, 5);
-        missionDone(ctx, "<h2>All " + ctx.m.sums.length + " sums done!</h2><p>" + stars + " of them right first time ⭐</p>");
+        missionDone(ctx, "<h2>Practice sums done!</h2><p>" + stars + " of " + ctx.m.sums.length + " right first time ⭐</p>");
       });
     }
     function complete() {
@@ -1568,17 +1619,17 @@
   // ----- column addition mission -----
   function digits3(n) { return [n % 10, Math.floor(n / 10) % 10, Math.floor(n / 100) % 10]; }
   VIEWS.hw_coladd = function (ctx) {
+    ctx = sumsCtx(ctx);
     var ms = mState(ctx.hw.id, ctx.m.id); ms.solved = ms.solved || {};
-    var n = ctx.m.sums.length, solved = Object.keys(ms.solved).length;
-    $app.innerHTML = mTop(ctx) +
-      '<div class="card"><h3>💡 What is carrying?</h3><div class="exch"><div class="ones">' + new Array(11).join("<i></i>") + '</div><div class="arrow">→</div><div class="rod">10</div></div>' +
-      "<p>If a column adds up to <b>10 or more</b>, it's too big for one column! <b>10 ones make 1 ten</b>, so the ten moves next door. We call it <b>carrying</b>.</p>" +
-      '<p class="muted" style="margin:0">Always start with the <b>ones</b> on the right.</p></div>' +
-      '<div class="card"><h3>Pick a sum · ' + solved + " of " + n + ' done</h3><div class="sumgrid">' +
+    var n = ctx.m.sums.length, solved = Object.keys(ms.solved).filter(function (k) { return k < n; }).length;
+    $app.innerHTML = mTop(ctx, "Practise") +
+      '<div class="card"><h3>💡 Carrying</h3><div class="exch"><div class="ones">' + new Array(11).join("<i></i>") + '</div><div class="arrow">→</div><div class="rod">10</div></div>' +
+      "<p>A column makes <b>10 or more</b>? <b>10 ones = 1 ten</b>, so carry the 1 next door. Always start with the <b>ones</b>.</p></div>" +
+      '<div class="card"><h3>Practise these 3 sums · ' + solved + " done</h3><div class=\"sumgrid\">" +
       ctx.m.sums.map(function (s, i) {
         var d = ms.solved[i];
         return '<button class="sumbtn ' + (d ? "done" : "") + '" data-i="' + i + '"><small>' + (i + 1) + "</small>" + s[0] + " + " + s[1] + (d ? "<span>" + (d.stars ? "⭐" : "✓") + "</span>" : "") + "</button>";
-      }).join("") + "</div></div>";
+      }).join("") + '</div><p class="muted" style="margin-top:10px">Then you\'ll do all ' + ctx.m.allSums.length + " on paper.</p></div>";
     backToHub(ctx);
     $$(".sumbtn").forEach(function (b) { b.addEventListener("click", function () { go("coladdDo", { ctx: ctx, i: +b.getAttribute("data-i") }); }); });
   };
@@ -1655,7 +1706,7 @@
         if (nx != null) return go("coladdDo", { ctx: ctx, i: nx });
         var stars = Object.keys(ms.solved).filter(function (k) { return ms.solved[k].stars; }).length;
         finishMission(ctx, {}, 5);
-        missionDone(ctx, "<h2>All " + ctx.m.sums.length + " sums done!</h2><p>" + stars + " of them right first time ⭐</p>");
+        missionDone(ctx, "<h2>Practice sums done!</h2><p>" + stars + " of " + ctx.m.sums.length + " right first time ⭐</p>");
       });
     }
     function complete() {
@@ -1997,55 +2048,48 @@
     return Object.keys(tt).sort(function (x, y) { return tt[y] - tt[x]; }).slice(0, n || 8);
   }
   var TT_ROUNDS = 5;
+  // 20 questions from the sheet, the harder tables first.
+  function ttPractice(m) {
+    var seen = {}, list = [];
+    m.facts.forEach(function (f) { var k = factKey(f[0], f[1]); if (!seen[k]) { seen[k] = 1; list.push(f); } });
+    var easy = function (f) { return [1, 2, 5, 10].indexOf(f[0]) >= 0 || [1, 2, 5, 10].indexOf(f[1]) >= 0 ? 1 : 0; };
+    var tricky = S.prog.tt || {};
+    list.sort(function (x, y) { return (tricky[factKey(y[0], y[1])] || 0) - (tricky[factKey(x[0], x[1])] || 0) || easy(x) - easy(y); });
+    return shuffle(list.slice(0, 20));
+  }
   function ttRoundFacts(m, r) { var per = Math.ceil(m.facts.length / TT_ROUNDS); return m.facts.slice(r * per, (r + 1) * per); }
   VIEWS.hw_times = function (ctx) {
-    var ms = mState(ctx.hw.id, ctx.m.id); ms.rounds = ms.rounds || {};
-    var tricky = trickyFacts(8);
-    $app.innerHTML = mTop(ctx) +
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    var tricky = trickyFacts(6);
+    $app.innerHTML = mTop(ctx, "Practise") +
       '<div class="card"><h3>💡 Times table tricks</h3><div class="tricks">' +
-      [["🔄", "Swap them", "6 × 12 is the same as 12 × 6"], ["🔟", "Times 10", "Put a 0 on the end: 7 → 70"], ["✌️", "Times 2", "Just double it"], ["🖐️", "Times 5", "Times 10, then halve it"],
-        ["9️⃣", "Times 9", "Times 10, take one away"], ["1️⃣", "Times 11", "Up to 9, write it twice: 44"], ["🧮", "Times 12", "Times 10, add 2 more"], ["➕", "Times 4", "Double, then double again"]]
+      [["🔄", "Swap them", "6 × 12 = 12 × 6"], ["🔟", "Times 10", "Put a 0 on the end"], ["9️⃣", "Times 9", "Times 10, take one away"], ["🧮", "Times 12", "Times 10, add 2 more"]]
         .map(function (t) { return '<div class="trick"><span>' + t[0] + "</span><b>" + t[1] + "</b><small>" + t[2] + "</small></div>"; }).join("") + "</div></div>" +
-      '<div class="card"><h3>The sheet in ' + TT_ROUNDS + " rounds</h3>" +
-      Array.apply(null, Array(TT_ROUNDS)).map(function (_, r) {
-        var f = ttRoundFacts(ctx.m, r), best = ms.rounds[r];
-        return '<button class="roundbtn ' + (best != null ? "done" : "") + '" data-r="' + r + '"><b>Round ' + (r + 1) + "</b><span>" + f.length + " questions</span><em>" + (best != null ? (best === f.length ? "⭐ " : "") + best + " / " + f.length : "Go ›") + "</em></button>";
-      }).join("") + "</div>" +
-      (tricky.length ? '<div class="card"><h3>🎯 Your tricky ones</h3><div class="chips">' + tricky.map(function (k) { return '<span class="chip bad">' + k + "</span>"; }).join("") + '</div><p class="muted" style="margin-top:8px">These come back in Remember these! until you know them.</p></div>' : "");
+      '<div class="card center"><p><b>20 questions</b> from your sheet, the tricky ones first.</p>' +
+      '<button class="btn block" id="go">Start ▶</button>' + (ms.best != null ? '<p class="muted" style="margin-top:8px">Best so far: ' + ms.best + " / 20</p>" : "") + "</div>" +
+      (tricky.length ? '<div class="card"><h3>🎯 Your tricky ones</h3><div class="chips">' + tricky.map(function (k) { return '<span class="chip bad">' + k + "</span>"; }).join("") + "</div></div>" : "");
     backToHub(ctx);
-    $$(".roundbtn").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var r = +b.getAttribute("data-r");
-        go("timesQ", { ctx: ctx, r: r, qs: ttRoundFacts(ctx.m, r).map(function (f) { return { a: f[0], b: f[1] }; }), i: 0, score: 0, retries: [], firstDone: 0 });
-      });
+    on("#go", "click", function () {
+      go("timesQ", { ctx: ctx, qs: ttPractice(ctx.m).map(function (f) { return { a: f[0], b: f[1] }; }), i: 0, score: 0, retries: [], firstDone: 0, total: 20 });
     });
   };
   VIEWS.timesQ = function (o) {
     var ctx = o.ctx, q = o.qs[o.i], val = "", locked = false;
-    var total = ttRoundFacts(ctx.m, o.r).length;
-    $app.innerHTML = mTop(ctx, "Round " + (o.r + 1) + " · " + Math.min(o.firstDone + 1, total) + " of " + total + (q.retry ? " · try again" : "")) +
+    var total = o.total;
+    $app.innerHTML = mTop(ctx, Math.min(o.firstDone + 1, total) + " of " + total + (q.retry ? " · try again" : "")) +
       '<div class="progressbar"><div style="width:' + (o.firstDone / total * 100) + '%"></div></div>' +
       '<div class="card center"><div class="ttq">' + q.a + " × " + q.b + ' = <span class="ttans" id="ans">?</span></div><div id="fb" class="ttfb"></div>' +
       '<div class="pinpad tt">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, "⌫", 0, "✓"].map(function (k) { return '<button data-k="' + k + '">' + k + "</button>"; }).join("") + "</div></div>";
-    wireBack(function () { if (confirm("Stop this round?")) go("hw_times", ctx); });
+    wireBack(function () { if (confirm("Stop practising?")) go("job", ctx); });
     function show() { $("#ans").textContent = val || "?"; }
     function next() {
       o.i++;
       if (o.i >= o.qs.length && o.retries.length) { o.qs = o.qs.concat(o.retries); o.retries = []; }
       if (o.i < o.qs.length) return go("timesQ", o);
-      var ms = mState(ctx.hw.id, ctx.m.id); ms.rounds = ms.rounds || {};
-      var first = ms.rounds[o.r] == null;
-      ms.rounds[o.r] = Math.max(ms.rounds[o.r] || 0, o.score);
-      if (first) S.prog.stars = (S.prog.stars || 0) + o.score;
-      var allDone = Object.keys(ms.rounds).length >= TT_ROUNDS;
-      save(true);
-      if (allDone && !ms.done) {
-        finishMission(ctx, {}, 5);
-        return missionDone(ctx, "<h2>All " + ctx.m.facts.length + " done!</h2><p>Round " + (o.r + 1) + ": " + o.score + " / " + total + " first time ⭐</p>");
-      }
-      $app.innerHTML = topbar("Round " + (o.r + 1) + " finished!", false) + '<div class="card center"><div class="celebrate">' + (o.score === total ? "🏆" : o.score >= total * 0.8 ? "🌟" : "💪") + '</div><div class="score">' + o.score + " / " + total + "</div><p>" +
-        (o.score === total ? "Every one right first time!" : "Great work! The ones you missed will come back to practise.") + '</p><button class="btn block" id="b">Back to the rounds</button></div>';
-      on("#b", "click", function () { go("hw_times", ctx); });
+      var ms = mState(ctx.hw.id, ctx.m.id);
+      ms.best = Math.max(ms.best || 0, o.score);
+      finishMission(ctx, {}, o.score);
+      missionDone(ctx, '<div class="score">' + o.score + " / " + total + "</div><p>" + (o.score === total ? "Every one right first time!" : "Great work! The tricky ones will come back to practise.") + "</p>");
     }
     function check() {
       if (!val || locked) return;
@@ -2095,37 +2139,20 @@
     return text.split("").map(function (ch) { var k = letterKind(ch); return k && k !== "small" ? '<span class="lk-' + k + '">' + esc(ch) + "</span>" : esc(ch); }).join("");
   }
   VIEWS.hw_handwriting = function (ctx) {
-    var ms = mState(ctx.hw.id, ctx.m.id); ms.copied = ms.copied || {}; ms.check = ms.check || {};
-    var sentences = ctx.m.paragraph.match(/[^.!?]+[.!?]/g).map(function (s) { return s.trim(); });
-    var checks = ["My tall letters reach right up high", "My tails hang below the line", "My small letters are all the same size", "I left finger spaces between words", "Capital letters and full stops are in the right places"];
-    $app.innerHTML = mTop(ctx) +
-      '<div class="card"><h3>✏️ Three kinds of letter</h3><div class="hwlines big"><span class="lk-asc">b d f h k l t</span></div><p><b class="ink-asc">Tall letters</b> (ascenders) reach up high, like capital letters.</p>' +
-      '<div class="hwlines big"><span>a c e m n o r s u w</span></div><p><b>Small letters</b> all sit on the line and are the same size.</p>' +
-      '<div class="hwlines big"><span class="lk-desc">g j p q y</span></div><p><b class="ink-desc">Tails</b> (descenders) hang down below the line.</p>' +
-      '<button class="btn block coral" id="game">Tall, small or tail? game 🎯' + (ms.game != null ? " (best " + ms.game + "/12)" : "") + "</button></div>" +
-      '<div class="card"><h3>📖 Copy one sentence at a time</h3><p class="muted">Tall letters are purple and tails are orange. Tap 🔊 to hear a sentence, then tick it when you have copied it.</p>' +
-      sentences.map(function (s, i) {
-        return '<div class="copyrow ' + (ms.copied[i] ? "on" : "") + '"><div class="hwlines">' + writeLetters(s) + '</div><div class="row"><button class="btn small ghost" data-say="' + i + '">🔊</button><div class="spacer"></div><button class="btn small ' + (ms.copied[i] ? "" : "sun") + '" data-copy="' + i + '">' + (ms.copied[i] ? "✓ Copied" : "I copied it") + "</button></div></div>";
-      }).join("") + "</div>" +
-      '<div class="card"><h3>🔍 Check your writing</h3>' + checks.map(function (c, i) { return '<label class="tick"><input type="checkbox" data-chk="' + i + '" ' + (ms.check[i] ? "checked" : "") + "> " + c + "</label>"; }).join("") +
-      '<div id="fb"></div><div style="height:10px"></div><button class="btn block" id="fin">' + (ms.done ? "All done ✓" : "My handwriting is finished ⭐") + "</button></div>";
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    $app.innerHTML = mTop(ctx, "Practise") +
+      '<div class="card"><h3>✏️ Three kinds of letter</h3>' +
+      '<div class="hwlines big"><span class="lk-asc">b d f h k l t</span></div><p><b class="ink-asc">Tall letters</b> reach up high.</p>' +
+      '<div class="hwlines big"><span>a c e m n o r s u</span></div><p><b>Small letters</b> are all the same size.</p>' +
+      '<div class="hwlines big"><span class="lk-desc">g j p q y</span></div><p><b class="ink-desc">Tails</b> hang below the line.</p>' +
+      '<button class="btn block coral" id="game">' + (ms.game != null ? "Play again" : "Play") + " Tall, small or tail? 🎯" + (ms.game != null ? " (best " + ms.game + "/8)" : "") + "</button></div>" +
+      '<div class="card"><h3>👀 Look at your paragraph</h3><p class="muted">Tall letters are purple, tails are orange. Tap 🔊 to hear it.</p><div class="hwlines">' + writeLetters(ctx.m.paragraph) + "</div>" +
+      '<div style="height:10px"></div><button class="btn small ghost" id="say">🔊 Hear it</button></div>' +
+      (ms.game != null ? '<button class="btn block" id="fin">I\'m ready to write ✓</button>' : '<p class="muted center">Play the game first, then you\'re ready to write.</p>');
     backToHub(ctx);
-    on("#game", "click", function () {
-      var pool = shuffle((ASC + DESC + "acemnorsuvwxz").split("")).slice(0, 12);
-      go("letterGame", { ctx: ctx, qs: pool, i: 0, score: 0 });
-    });
-    $$("[data-say]").forEach(function (b) { b.addEventListener("click", function () { speak(sentences[+b.getAttribute("data-say")], 0.8); }); });
-    $$("[data-copy]").forEach(function (b) {
-      b.addEventListener("click", function () { var i = b.getAttribute("data-copy"); if (ms.copied[i]) delete ms.copied[i]; else ms.copied[i] = 1; save(); var y = window.scrollY; go("hw_handwriting", ctx); window.scrollTo(0, y); });
-    });
-    $$("[data-chk]").forEach(function (c) { c.addEventListener("change", function () { var i = c.getAttribute("data-chk"); if (c.checked) ms.check[i] = 1; else delete ms.check[i]; save(); }); });
-    on("#fin", "click", function () {
-      var copied = Object.keys(ms.copied).length, ticks = Object.keys(ms.check).length;
-      if (copied < sentences.length) { $("#fb").innerHTML = '<div class="feedback bad">Copy all ' + sentences.length + " sentences first (" + copied + " done).</div>"; return; }
-      if (ticks < 3) { $("#fb").innerHTML = '<div class="feedback bad">Look carefully at your writing and tick the checks you are happy with.</div>'; return; }
-      finishMission(ctx, { checks: ticks }, 3 + ticks);
-      missionDone(ctx, "<h2>Beautiful handwriting!</h2><p>You copied all " + sentences.length + " sentences and checked " + ticks + " things. ✨</p>");
-    });
+    on("#say", "click", function () { speak(ctx.m.paragraph, 0.8); });
+    on("#game", "click", function () { go("letterGame", { ctx: ctx, qs: shuffle((ASC + DESC + "acemnorsuvwxz").split("")).slice(0, 8), i: 0, score: 0 }); });
+    on("#fin", "click", function () { finishMission(ctx, {}, 3); missionDone(ctx, "<h2>Ready to write!</h2><p>Remember: tall letters up high, tails below the line, small letters all the same size. ✨</p>"); });
   };
   VIEWS.letterGame = function (o) {
     var ctx = o.ctx, ch = o.qs[o.i], kind = letterKind(ch);
@@ -2185,15 +2212,13 @@
   }
   VIEWS.hw_stoneage = function (ctx) {
     var ms = mState(ctx.hw.id, ctx.m.id);
-    $app.innerHTML = mTop(ctx) +
-      '<div class="card"><p>The <b>Palaeolithic</b> is the <b>Old Stone Age</b>, more than 10,000 years ago, in the <b>Ice Age</b>. People had no shops or houses. They hunted animals, gathered berries and nuts, and moved from place to place.</p>' +
-      '<div class="mapwrap" style="margin:6px 0 0">' + stoneSvg(ms.labelled ? { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1 } : {}) + "</div></div>" +
-      '<div class="card"><h3>How did they survive?</h3>' + STONE.map(function (s) { return '<div class="featcard" style="background:#ebe3f6"><div class="ft">' + s[0] + " " + s[1] + '</div><div class="fw">' + s[2] + "</div></div>"; }).join("") + "</div>" +
-      '<button class="mission small ' + (ms.labelled ? "done" : "") + '" id="s1" style="--mc:#7b5ea7;--mb:#ebe3f6"><div class="memoji">🏷️</div><div style="flex:1"><div class="t">1. Label the picture</div><div class="s">' + (ms.labelGame != null ? "Best: " + ms.labelGame + " / 5" : "What is each number?") + '</div></div><div class="mgo">' + (ms.labelled ? "✓" : "›") + "</div></button>" +
-      '<button class="mission small ' + (ms.done ? "done" : "") + '" id="s2" style="--mc:#7b5ea7;--mb:#ebe3f6"><div class="memoji">🖍️</div><div style="flex:1"><div class="t">2. Plan my drawing</div><div class="s">Pick 3 things and write your labels</div></div><div class="mgo">' + (ms.done ? "✓" : "›") + "</div></button>";
+    $app.innerHTML = mTop(ctx, "Practise") +
+      '<div class="card"><p>The <b>Palaeolithic</b> is the <b>Old Stone Age</b>, in the Ice Age. People hunted animals, picked berries and moved from place to place.</p>' +
+      '<div class="mapwrap" style="margin:6px 0 0">' + stoneSvg({}) + "</div></div>" +
+      '<div class="card"><h3>5 things that helped them survive</h3>' + STONE.map(function (x) { return '<p class="survive"><span>' + x[0] + "</span><b>" + x[1] + ":</b> " + x[2] + "</p>"; }).join("") + "</div>" +
+      '<button class="btn block plum" id="go">Label the picture game 🏷️' + (ms.labelGame != null ? " (best " + ms.labelGame + "/5)" : "") + "</button>";
     backToHub(ctx);
-    on("#s1", "click", function () { go("stoneLabel", { ctx: ctx, order: shuffle([0, 1, 2, 3, 4]), i: 0, score: 0, got: {} }); });
-    on("#s2", "click", function () { go("stonePlan", { ctx: ctx }); });
+    on("#go", "click", function () { go("stoneLabel", { ctx: ctx, order: shuffle([0, 1, 2, 3, 4]), i: 0, score: 0, got: {} }); });
   };
   VIEWS.stoneLabel = function (o) {
     var ctx = o.ctx, n = o.order[o.i];
@@ -2212,9 +2237,9 @@
         on("#next", "click", function () {
           if (o.i + 1 < 5) { o.i++; return go("stoneLabel", o); }
           var ms = mState(ctx.hw.id, ctx.m.id);
-          if (ms.labelGame == null) S.prog.stars = (S.prog.stars || 0) + o.score;
-          ms.labelGame = Math.max(ms.labelGame || 0, o.score); ms.labelled = true; save(true);
-          go("hw_stoneage", ctx);
+          ms.labelGame = Math.max(ms.labelGame || 0, o.score); ms.labelled = true;
+          finishMission(ctx, {}, o.score);
+          missionDone(ctx, '<div class="score">' + o.score + ' / 5</div><p>Now you know what to draw and label!</p>');
         });
       });
     });
@@ -2252,34 +2277,24 @@
 
   // ----- Children's Commissioner mission -----
   VIEWS.hw_commissioner = function (ctx) {
-    var ms = mState(ctx.hw.id, ctx.m.id); ms.plans = ms.plans || []; ms.talk = ms.talk || {};
-    var talks = ["What did you do on World Children's Day?", "What did you learn about children's rights?", "Which right do our family think is most important?"];
-    $app.innerHTML = mTop(ctx) +
-      '<div class="card"><h3>💬 Talk with your family</h3>' + talks.map(function (t, i) {
-        return '<label class="tick"><input type="checkbox" data-t="' + i + '" ' + (ms.talk[i] ? "checked" : "") + "> " + t + "</label>";
-      }).join("") + "</div>" +
-      '<div class="card"><h3>🏛️ Commissioner for a Day</h3><p>The real <b>Children\'s Commissioner</b> stands up for children and makes sure their rights are respected. If that was <b>you</b> for a day, what would you change to make life better for children?</p>' +
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    var p = (ms.plans || [])[0] || {};
+    $app.innerHTML = mTop(ctx, "Practise") +
+      '<div class="card"><p>Imagine you are the <b>Children\'s Commissioner</b> for a day. Their job is to stand up for children. What would <b>you</b> change?</p>' +
       '<p class="muted">Example: "' + esc(ctx.m.example) + '"</p></div>' +
-      (ms.plans.length ? '<div class="card"><h3>My changes</h3>' + ms.plans.map(function (p, i) { return '<p class="mysent">I would ' + esc(p.what) + " because " + esc(p.why) + '. <button class="btn small ghost rmc" data-i="' + i + '">Remove</button></p>'; }).join("") + "</div>" : "") +
-      '<div class="card"><h3>' + (ms.plans.length ? "Add another change" : "My change") + '</h3><div class="starter">I would …</div>' +
+      '<div class="card"><div class="starter">I would …</div>' +
       '<div class="chips" style="margin-bottom:10px">' + ctx.m.ideas.map(function (t) { return '<button class="chip idea cidea">' + esc(t) + "</button>"; }).join("") + "</div>" +
-      '<textarea id="what" class="sentbox" rows="2" placeholder="…make more parks and safe play areas"></textarea>' +
-      '<div class="starter" style="margin-top:12px">because …</div><textarea id="why" class="sentbox" rows="3" placeholder="…it helps children have fun and stay healthy"></textarea>' +
-      '<div id="fb"></div><div style="height:10px"></div><button class="btn block sun" id="add">Save my change ✓</button></div>' +
-      (ms.plans.length ? '<button class="btn block" id="fin">' + (ms.done ? "All done ✓" : "I'm finished ⭐") + "</button>" : "");
+      '<textarea id="what" class="sentbox" rows="2" placeholder="…make more parks">' + esc(p.what || "") + "</textarea>" +
+      '<div class="starter" style="margin-top:12px">because …</div><textarea id="why" class="sentbox" rows="2" placeholder="…children need safe places to play">' + esc(p.why || "") + "</textarea>" +
+      '<div id="fb"></div><div style="height:10px"></div><button class="btn block sun" id="add">That\'s my idea ✓</button></div>';
     backToHub(ctx);
-    $$("[data-t]").forEach(function (c) { c.addEventListener("change", function () { var i = c.getAttribute("data-t"); if (c.checked) ms.talk[i] = 1; else delete ms.talk[i]; save(); }); });
     $$(".cidea").forEach(function (b) { b.addEventListener("click", function () { $("#what").value = b.textContent; $("#why").focus(); }); });
-    $$(".rmc").forEach(function (b) { b.addEventListener("click", function () { ms.plans.splice(+b.getAttribute("data-i"), 1); save(); go("hw_commissioner", ctx); }); });
     on("#add", "click", function () {
       var what = $("#what").value.trim().replace(/^i would\s+/i, "").replace(/[.!]$/, ""), why = $("#why").value.trim().replace(/^because\s+/i, "").replace(/[.!]$/, "");
-      if (what.split(/\s+/).length < 2) { $("#fb").innerHTML = '<div class="feedback bad">What would you change? Pick an idea or write your own.</div>'; return; }
-      if (why.split(/\s+/).length < 3) { $("#fb").innerHTML = '<div class="feedback bad">Now explain <b>why</b>. Write a few words after "because".</div>'; return; }
-      ms.plans.push({ what: what.slice(0, 160), why: why.slice(0, 240) }); save(true); go("hw_commissioner", ctx);
-    });
-    on("#fin", "click", function () {
-      finishMission(ctx, { plans: ms.plans }, 3 + ms.plans.length);
-      missionDone(ctx, "<h2>Thank you, Commissioner!</h2>" + ms.plans.map(function (p) { return '<p class="mysent">I would ' + esc(p.what) + " because " + esc(p.why) + ".</p>"; }).join(""));
+      if (what.split(/\s+/).length < 2) { $("#fb").innerHTML = '<div class="feedback bad">What would you change? Tap an idea or write your own.</div>'; return; }
+      if (why.split(/\s+/).length < 3) { $("#fb").innerHTML = '<div class="feedback bad">Now say <b>why</b>, after "because".</div>'; return; }
+      finishMission(ctx, { plans: [{ what: what.slice(0, 160), why: why.slice(0, 240) }] }, 4);
+      missionDone(ctx, '<h2>Great idea!</h2><p class="mysent">I would ' + esc(what) + " because " + esc(why) + ".</p>");
     });
   };
 
@@ -2335,11 +2350,10 @@
         '<button class="btn block sun" id="play">Play Pet Catch 🎮</button></div>';
     }
     var scale = (0.55 + 0.45 * d / n).toFixed(2);
-    return '<div class="card center eggcard"><div class="eggbox ' + (d >= n - 1 ? "wobble" : "") + '" style="--s:' + scale + '">' + eggSvg(pet, d, n) + "</div>" +
-      (d === n ? '<h2>Your egg is ready to hatch!</h2><button class="btn block sun" id="hatch">Hatch my egg 🐣</button>'
-        : "<p><b>Your egg is growing!</b> " + (n - d === 1 ? "Just <b>1</b> more mission and it will hatch! 👀" : "Finish <b>" + (n - d) + "</b> more missions to hatch it.") + "</p>" +
-          '<div class="eggdots">' + Array.apply(null, Array(n)).map(function (_, i) { return '<span class="' + (i < d ? "on" : "") + '"></span>'; }).join("") + "</div>") +
-      "</div>";
+    if (d === n) return '<div class="card center eggcard"><div class="eggbox wobble" style="--s:1">' + eggSvg(pet, d, n) + '</div><h2>Your egg is ready to hatch!</h2><button class="btn block sun" id="hatch">Hatch my egg 🐣</button></div>';
+    return '<div class="card eggcard compact"><div class="eggbox ' + (d >= n - 1 ? "wobble" : "") + '" style="--s:' + scale + '">' + eggSvg(pet, d, n) + "</div>" +
+      "<div><b>Your egg is growing!</b><br>" + (n - d === 1 ? "Just <b>1</b> more job and it will hatch! 👀" : "Finish <b>" + (n - d) + "</b> more jobs on paper to hatch it.") +
+      '<div class="eggdots">' + Array.apply(null, Array(n)).map(function (_, i) { return '<span class="' + (i < d ? "on" : "") + '"></span>'; }).join("") + "</div></div></div>";
   }
   VIEWS.hatch = function (hwId) {
     var hw = hwById(hwId), st = hwState(hwId), pet = petFor(hwId), n = hwMissions(hw).length, taps = 0;
@@ -2670,10 +2684,10 @@
     });
     return out;
   }
-  function hwMissions(hw) {
-    var list = (hw.missions || []).slice();
-    if (reviewSkillsFor(hw).length) list.push({ id: "review", type: "review", emoji: "🔁", colour: "teal", title: "Remember these!", sub: "Maths from earlier weeks" });
-    return list;
+  function hwMissions(hw) { return (hw.missions || []).slice(); }
+  // Extra practice that is not part of the paper homework.
+  function hwBonus(hw) {
+    return reviewSkillsFor(hw).length ? { id: "review", type: "review", emoji: "🔁", colour: "teal", title: "Remember these!", sub: "Bonus maths from earlier weeks", bonus: true } : null;
   }
 
   VIEWS.hw_review = function (ctx) {
@@ -2770,17 +2784,18 @@
           (ms.list || []).map(function (r) { return esc(r.thing) + " – " + esc(r.rock); }).join(", ");
         if (m.type === "rights") detail = (ms.people || []).map(function (x) { return esc(x.who) + ": the right " + esc(RIGHTS[x.right][1]) + (x.why ? " (" + esc(x.why) + ")" : ""); }).join("<br>");
         if (m.type === "spelling" && ms.pairs != null) detail += (detail ? " · " : "") + "Which-one game " + ms.pairs + "/10";
-        if (m.type === "times") detail = Object.keys(ms.rounds || {}).length + "/5 rounds" + (Object.keys(ms.rounds || {}).length ? " (" + Object.keys(ms.rounds).map(function (r) { return ms.rounds[r]; }).join(", ") + " right first time)" : "") +
+        if (m.type === "times") detail = (ms.best != null ? "Practice best " + ms.best + "/20" : "") +
           ((p.tt && Object.keys(p.tt).length) ? "<br>Tricky: " + Object.keys(p.tt).sort(function (x, y) { return p.tt[y] - p.tt[x]; }).slice(0, 8).join(", ") : "");
-        if (m.type === "handwriting") detail = Object.keys(ms.copied || {}).length + " sentences copied" + (ms.game != null ? " · letter game " + ms.game + "/12" : "");
-        if (m.type === "stoneage" && ms.labels) detail = Object.keys(ms.labels).map(function (k) { return "“" + esc(ms.labels[k]) + "”"; }).join("<br>");
+        if (m.type === "handwriting") detail = ms.game != null ? "Letter game " + ms.game + "/8" : "";
+        if (m.type === "stoneage" && ms.labelGame != null) detail = "Label game " + ms.labelGame + "/5";
         if (m.type === "commissioner") detail = (ms.plans || []).map(function (x) { return "I would " + esc(x.what) + " because " + esc(x.why) + "."; }).join("<br>") + (Object.keys(ms.talk || {}).length ? "<br>Family talk: " + Object.keys(ms.talk).length + "/3" : "");
         if (m.type === "review" && ms.total) detail = "Maths review " + ms.score + "/" + ms.total;
         if (m.type === "discuss") detail = Object.keys(ms.talked || {}).length + "/" + m.questions.length + " talked about" +
           Object.keys(ms.notes || {}).filter(function (k) { return ms.notes[k]; }).map(function (k) { return "<br>" + (+k + 1) + ". " + esc(ms.notes[k]); }).join("");
-        return "<tr><td>" + (ms.done ? "⭐" : "◻️") + " " + m.emoji + "</td><td><b>" + esc(m.title) + "</b>" + (detail ? '<br><span class="muted">' + detail + "</span>" : "") + "</td></tr>";
+        return "<tr><td>" + m.emoji + '</td><td><b>' + esc(m.title) + "</b><br>" + (ms.done ? "📱 practised ✓" : "📱 not practised") + " · " + (onPaper(hw, ms) ? "✏️ on paper ✓" : "✏️ not on paper yet") +
+          (detail ? '<br><span class="muted">' + detail + "</span>" : "") + "</td></tr>";
       }).join("");
-      return '<div class="card"><h3>📝 Homework: ' + esc(hw.title) + '</h3><p class="muted">' + dueText(hw.due) + " · " + hwDoneCount(hw, st) + "/" + hwMissions(hw).length + " missions done" +
+      return '<div class="card"><h3>📝 Homework: ' + esc(hw.title) + '</h3><p class="muted">' + dueText(hw.due) + " · " + hwDoneCount(hw, st) + "/" + hwMissions(hw).length + " jobs done on paper" +
         (st.pet && st.pet.hatched ? " · 🐣 hatched " + esc(st.pet.name) : "") + "</p><table>" + rows + "</table></div>";
     }).join("");
   }

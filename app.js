@@ -1032,8 +1032,9 @@
   // A homework job has two steps: practise in the app (ms.done) and do it on paper (ms.paper).
   // The job only counts as finished once it is done on paper.
   // Weeks handed in before the paper step existed count as done on paper once practised.
-  function onPaper(hw, ms) { return !!(ms && (ms.paper || (ms.done && hw.due < "2026-11-22"))); }
-  function hwDoneCount(hw, st) { return hwMissions(hw).filter(function (m) { return st && onPaper(hw, st[m.id]); }).length; }
+  function isMarked(hw, mId) { return (hw.markedDone || []).indexOf(mId) >= 0; }
+  function onPaper(hw, ms, mId) { return isMarked(hw, mId) || !!(ms && (ms.paper || (ms.done && hw.due < "2026-11-22"))); }
+  function hwDoneCount(hw, st) { return hwMissions(hw).filter(function (m) { return onPaper(hw, (st || {})[m.id], m.id); }).length; }
   function daysUntil(d) { return Math.round((new Date(d + "T12:00") - new Date(today() + "T12:00")) / 86400000); }
   function dueText(due) {
     var n = daysUntil(due);
@@ -1043,7 +1044,7 @@
     return activeHomework().map(function (hw) {
       var st = (S.prog.hw || {})[hw.id], d = hwDoneCount(hw, st), n = hwMissions(hw).length;
       return '<button class="tile hwtile" data-hw="' + esc(hw.id) + '"><div class="emoji bg-plum">📝</div><div style="flex:1"><div class="t">Homework: ' + esc(hw.title) + '</div><div class="s">' + dueText(hw.due) + "</div>" +
-        '<div class="hwdots">' + hwMissions(hw).map(function (m) { return '<span class="' + (st && onPaper(hw, st[m.id]) ? "on" : "") + '">' + m.emoji + "</span>"; }).join("") + "</div></div>" +
+        '<div class="hwdots">' + hwMissions(hw).map(function (m) { return '<span class="' + (onPaper(hw, (st || {})[m.id], m.id) ? "on" : "") + '">' + m.emoji + "</span>"; }).join("") + "</div></div>" +
         (d === n ? '<span class="badge">⭐ Done</span>' : '<span class="badge" style="background:#ebe3f6;color:#5d4583">' + d + "/" + n + "</span>") + "</button>";
     }).join("");
   }
@@ -1051,7 +1052,7 @@
   VIEWS.hwHub = function (hwId) {
     var hw = hwById(hwId); if (!hw) return go("home");
     var st = hwState(hwId), d = hwDoneCount(hw, st), n = hwMissions(hw).length;
-    var nextId = (hwMissions(hw).find(function (m) { return !(st[m.id] && st[m.id].paper); }) || {}).id;
+    var nextId = (hwMissions(hw).find(function (m) { return !onPaper(hw, st[m.id], m.id); }) || {}).id;
     var bonus = hwBonus(hw);
     $app.innerHTML = topbar("My homework", true) +
       '<div class="hwhead"><div class="t">📝 ' + esc(hw.title) + "</div><div>" + dueText(hw.due) + "</div>" +
@@ -1059,7 +1060,8 @@
       eggCard(hw, st, d, n) +
       (d === n ? '<div class="tipbox" style="margin-bottom:14px">🏆 <b>Homework hero!</b> Pack your homework book in your bag.</div>' : "") +
       hwMissions(hw).map(function (m, i) {
-        var c = COLOURS[m.colour] || COLOURS.teal, ms = st[m.id] || {}, isNext = m.id === nextId;
+        var c = COLOURS[m.colour] || COLOURS.teal, ms = Object.assign({}, st[m.id] || {}), isNext = m.id === nextId;
+        if (isMarked(hw, m.id)) { ms.done = true; ms.paper = true; }
         return '<button class="job ' + (ms.paper ? "done " : "") + (isNext ? "next" : "") + '" data-m="' + esc(m.id) + '" style="--mc:' + c[1] + ";--mb:" + c[0] + '">' +
           (isNext ? '<div class="ribbon">Start here 👉</div>' : "") +
           '<div class="jtop"><div class="jnum">' + (ms.paper ? "⭐" : i + 1) + '</div><div class="memoji">' + m.emoji + '</div><div style="flex:1"><div class="t">' + esc(m.title) + '</div><div class="s">15 minutes</div></div></div>' +
@@ -1085,6 +1087,15 @@
   VIEWS.job = function (ctx) {
     ctx = { hw: ctx.hw, m: realMission(ctx) };
     var m = ctx.m, ms = mState(ctx.hw.id, m.id);
+    if (isMarked(ctx.hw, m.id)) {
+      $app.innerHTML = topbar(m.emoji + " " + m.title, true) +
+        '<div class="card center"><div class="celebrate">⭐</div><h2>All done!</h2><p>A grown-up has marked this job as finished. Well done!</p>' +
+        '<button class="btn block ghost" id="prac">Practise anyway ↻</button><div style="height:10px"></div><button class="btn block" id="back2">Back to my homework</button></div>';
+      wireBack(function () { go("hwHub", ctx.hw.id); });
+      on("#prac", "click", function () { go("hw_" + m.type, ctx); });
+      on("#back2", "click", function () { go("hwHub", ctx.hw.id); });
+      return;
+    }
     $app.innerHTML = topbar(m.emoji + " " + m.title, true) +
       '<p class="center muted" style="margin:-6px 0 12px">About 15 minutes · 2 steps</p>' +
       '<div class="stepcard s1 ' + (ms.done ? "done" : "") + '"><div class="sh"><span class="sn">1</span><div><b>📱 Practise here</b><small>about 5 minutes</small></div>' + (ms.done ? '<span class="sok">✓ Done</span>' : "") + "</div>" +
@@ -2792,7 +2803,7 @@
         if (m.type === "review" && ms.total) detail = "Maths review " + ms.score + "/" + ms.total;
         if (m.type === "discuss") detail = Object.keys(ms.talked || {}).length + "/" + m.questions.length + " talked about" +
           Object.keys(ms.notes || {}).filter(function (k) { return ms.notes[k]; }).map(function (k) { return "<br>" + (+k + 1) + ". " + esc(ms.notes[k]); }).join("");
-        return "<tr><td>" + m.emoji + '</td><td><b>' + esc(m.title) + "</b><br>" + (ms.done ? "📱 practised ✓" : "📱 not practised") + " · " + (onPaper(hw, ms) ? "✏️ on paper ✓" : "✏️ not on paper yet") +
+        return "<tr><td>" + m.emoji + '</td><td><b>' + esc(m.title) + "</b><br>" + (ms.done ? "📱 practised ✓" : "📱 not practised") + " · " + (isMarked(hw, m.id) ? "✏️ marked done by a grown-up ✓" : onPaper(hw, ms, m.id) ? "✏️ on paper ✓" : "✏️ not on paper yet") +
           (detail ? '<br><span class="muted">' + detail + "</span>" : "") + "</td></tr>";
       }).join("");
       return '<div class="card"><h3>📝 Homework: ' + esc(hw.title) + '</h3><p class="muted">' + dueText(hw.due) + " · " + hwDoneCount(hw, st) + "/" + hwMissions(hw).length + " jobs done on paper" +

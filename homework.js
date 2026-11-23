@@ -12,6 +12,8 @@ window.HOMEWORK = [
     due: "2026-11-23",
     title: "Stone Age week",
     skills: ["times"],
+    // Jobs a grown-up has marked as finished (they still grow the egg).
+    markedDone: ["times", "hand", "stone", "day"],
     missions: [
       {
         id: "spell", type: "spelling", emoji: "✏️", colour: "teal",

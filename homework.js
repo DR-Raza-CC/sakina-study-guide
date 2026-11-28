@@ -8,6 +8,67 @@
 
 window.HOMEWORK = [
   {
+    id: "hw-2026-11-30",
+    due: "2026-11-30",
+    title: "Friendship week",
+    skills: ["to100"],
+    missions: [
+      {
+        id: "spell", type: "spelling", emoji: "✏️", colour: "teal",
+        title: "Spelling: -ly words",
+        mark: "ly",
+        sub: "Look, write, check. Then a test!",
+        tip: "Add ly to a describing word to show HOW something is done: kind → kindly, brave → bravely. Watch out: final → finally and usual → usually have a double l!",
+        words: [
+          ["kindly", "She kindly shared her crayons with me."],
+          ["quickly", "The rabbit ran quickly into its burrow."],
+          ["safely", "We crossed the road safely."],
+          ["rudely", "The grumpy troll rudely shouted at the goats."],
+          ["sweetly", "The bird sang sweetly in the tree."],
+          ["strongly", "The wind blew strongly all night."],
+          ["bravely", "The knight bravely faced the dragon."],
+          ["secretly", "I secretly made a birthday card for Mum."],
+          ["finally", "We finally reached the top of the hill."],
+          ["usually", "I usually have cereal for breakfast."]
+        ],
+        practice: "Listen to each word and spell it.",
+        paper: "Write each word 10 times. Then ask a grown-up to test you."
+      },
+      {
+        id: "to100", type: "to100", emoji: "💯", colour: "sky",
+        title: "Maths: make 100",
+        sub: "How much more to make 100?",
+        nums: [68, 32, 51, 49, 77, 42, 83, 64, 55, 38],
+        practice: "Learn two ways to make 100, then try 5 with new numbers.",
+        paper: "Find how much more makes 100 for each number. Use a number line or split the number."
+      },
+      {
+        id: "hand", type: "handwriting", emoji: "🖊️", colour: "coral",
+        title: "English: spelling sentences",
+        sub: "Neat sentences using your -ly words",
+        ownSentences: true,
+        words: ["kindly", "quickly", "safely", "rudely", "sweetly", "strongly", "bravely", "secretly", "finally", "usually"],
+        paragraph: "My friend kindly and quickly helped me tidy up. We usually cross the road safely. Finally, the knight bravely crept past the sleeping dragon.",
+        practice: "Learn tall letters and tails, then look at some example sentences.",
+        paper: "Write your own sentences using your spellings, in your neatest handwriting. Challenge: put 2 spellings in one sentence!"
+      },
+      {
+        id: "venn", type: "venn", emoji: "⭕", colour: "plum",
+        title: "History: then and now",
+        sub: "Stone Age life vs today in a Venn diagram",
+        practice: "Sort 9 cards: Stone Age, today, or both?",
+        paper: "Draw a Venn diagram. Label one circle 'Palaeolithic times' and the other 'Today'. Write at least 3 things in each part."
+      },
+      {
+        id: "poem", type: "poem", emoji: "💛", colour: "sun",
+        title: "Value of the Month: Friendship",
+        sub: "Write a friendship poem",
+        practice: "Play the rhyme and alliteration game.",
+        paper: "Write an acrostic poem (F-R-I-E-N-D-S-H-I-P) or a short rhyming verse about friendship. Use rhyming words and alliteration. Decorate it beautifully!"
+      }
+    ]
+  },
+  {
     id: "hw-2026-11-23",
     due: "2026-11-23",
     title: "Stone Age week",

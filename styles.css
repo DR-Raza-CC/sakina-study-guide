@@ -445,3 +445,9 @@ details summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
 .eggcard.compact { display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
 .eggcard.compact .eggbox { width: 78px; flex-shrink: 0; margin: 0; }
 .eggcard.compact .eggdots { justify-content: flex-start; }
+
+/* make 100, Venn and poem */
+.numline, .venn { width: 100%; max-width: 420px; display: block; margin: 6px auto; }
+.vennwrap { background: #fff; border-radius: 16px; padding: 6px; margin: 8px 0; }
+.qbox { display: inline-block; min-width: 44px; border: 3px dashed var(--plum); border-radius: 10px; padding: 0 8px; color: var(--plum); }
+.acrostic { font-size: 18px; line-height: 1.6; } .acrostic b { color: var(--coral); font-size: 22px; }

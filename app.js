@@ -1081,7 +1081,9 @@
     var h = "";
     if (m.type === "spelling") h += '<div class="chips paperwords">' + m.words.map(function (w) { return '<span class="chip">' + esc(w[0]) + "</span>"; }).join("") + "</div>";
     if (m.type === "colsub" || m.type === "coladd") h += '<div class="papersums">' + m.sums.map(function (x, i) { return "<span><small>" + (i + 1) + ".</small> " + x[0] + (m.type === "coladd" ? " + " : " − ") + x[1] + " =</span>"; }).join("") + "</div>";
-    if (m.type === "handwriting") h += '<p class="paperpara">' + esc(m.paragraph) + "</p>";
+    if (m.type === "handwriting") h += m.ownSentences ? '<p class="muted" style="margin-bottom:4px">Use these words:</p><div class="chips paperwords">' + m.words.map(function (w) { return '<span class="chip">' + esc(w) + "</span>"; }).join("") + "</div>" : '<p class="paperpara">' + esc(m.paragraph) + "</p>";
+    if (m.type === "to100") h += '<div class="papersums">' + m.nums.map(function (x, i) { return "<span><small>" + (i + 1) + ".</small> " + x + " + ? = 100</span>"; }).join("") + "</div>";
+    if (m.type === "venn") h += '<div class="vennwrap">' + vennSvg([]) + "</div>";
     return h;
   }
   VIEWS.job = function (ctx) {
@@ -2157,7 +2159,7 @@
       '<div class="hwlines big"><span>a c e m n o r s u</span></div><p><b>Small letters</b> are all the same size.</p>' +
       '<div class="hwlines big"><span class="lk-desc">g j p q y</span></div><p><b class="ink-desc">Tails</b> hang below the line.</p>' +
       '<button class="btn block coral" id="game">' + (ms.game != null ? "Play again" : "Play") + " Tall, small or tail? 🎯" + (ms.game != null ? " (best " + ms.game + "/8)" : "") + "</button></div>" +
-      '<div class="card"><h3>👀 Look at your paragraph</h3><p class="muted">Tall letters are purple, tails are orange. Tap 🔊 to hear it.</p><div class="hwlines">' + writeLetters(ctx.m.paragraph) + "</div>" +
+      '<div class="card"><h3>👀 ' + (ctx.m.ownSentences ? "Look at these example sentences" : "Look at your paragraph") + "</h3>" + '<p class="muted">Tall letters are purple, tails are orange. Tap 🔊 to hear it.</p><div class="hwlines">' + writeLetters(ctx.m.paragraph) + "</div>" +
       '<div style="height:10px"></div><button class="btn small ghost" id="say">🔊 Hear it</button></div>' +
       (ms.game != null ? '<button class="btn block" id="fin">I\'m ready to write ✓</button>' : '<p class="muted center">Play the game first, then you\'re ready to write.</p>');
     backToHub(ctx);
@@ -2306,6 +2308,166 @@
       if (why.split(/\s+/).length < 3) { $("#fb").innerHTML = '<div class="feedback bad">Now say <b>why</b>, after "because".</div>'; return; }
       finishMission(ctx, { plans: [{ what: what.slice(0, 160), why: why.slice(0, 240) }] }, 4);
       missionDone(ctx, '<h2>Great idea!</h2><p class="mysent">I would ' + esc(what) + " because " + esc(why) + ".</p>");
+    });
+  };
+
+  // ----- make 100 mission -----
+  function to100Line(n) {
+    var t = Math.ceil(n / 10) * 10, a = t - n, b = 100 - t, x0 = 24, x1 = a ? 96 : 24, x2 = 296;
+    var arc = function (xa, xb, h, lbl, col) { var mid = (xa + xb) / 2; return '<path d="M' + xa + " 70 Q" + mid + " " + (70 - h) + " " + xb + ' 70" fill="none" stroke="' + col + '" stroke-width="3"/><text x="' + mid + '" y="' + (70 - h / 2 - 6) + '" text-anchor="middle" font-size="15" font-weight="800" fill="' + col + '">+' + lbl + "</text>"; };
+    return '<svg viewBox="0 0 320 100" class="numline" role="img" aria-label="Number line from ' + n + ' to 100">' +
+      '<line x1="14" y1="70" x2="306" y2="70" stroke="#23303b" stroke-width="2"/>' +
+      (a ? arc(x0, x1, 36, a, "#ff7a59") : "") + arc(x1, x2, 70, b, "#4ea8de") +
+      [[x0, n], [x1, t], [x2, 100]].filter(function (p, i) { return i !== 1 || a; }).map(function (p) { return '<line x1="' + p[0] + '" y1="64" x2="' + p[0] + '" y2="76" stroke="#23303b" stroke-width="2"/><text x="' + p[0] + '" y="94" text-anchor="middle" font-size="14" font-weight="800" fill="#23303b">' + p[1] + "</text>"; }).join("") + "</svg>";
+  }
+  function to100Explain(n) {
+    var t = Math.ceil(n / 10) * 10, a = t - n, b = 100 - t, tens = n - n % 10, ones = n % 10;
+    return to100Line(n) + "<p>Jump <b>+" + a + "</b> to " + t + ", then <b>+" + b + "</b> to 100. " + a + " + " + b + " = <b>" + (100 - n) + "</b></p>" +
+      (ones ? '<p class="muted">Or split it: ' + n + " = " + tens + " + " + ones + ". Ones: " + ones + " + " + (10 - ones) + " = 10. Tens: " + tens + " + " + (90 - tens) + " = 90. So the answer is " + (90 - tens) + " + " + (10 - ones) + " = <b>" + (100 - n) + "</b>.</p>" : "");
+  }
+  VIEWS.hw_to100 = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    $app.innerHTML = mTop(ctx, "Practise") +
+      '<div class="card"><h3>🦘 Way 1: jump on a number line</h3><p>Start at <b>58</b>. Jump to the next ten, then jump to 100.</p>' + to100Line(58) +
+      "<p>+2 then +40. So <b>58 + 42 = 100</b> 🎉</p></div>" +
+      '<div class="card"><h3>✂️ Way 2: split the number</h3><p><b>68</b> = 60 + 8.</p><p>The <b>ones</b> make 10: 8 + <b>2</b> = 10.<br>The <b>tens</b> make 90: 60 + <b>30</b> = 90.</p><p>So <b>68 + 32 = 100</b> 🎉</p>' +
+      '<div class="tipbox">💡 Check: the ones always add to <b>10</b> and the tens add to <b>90</b>.</div></div>' +
+      '<button class="btn block" id="go">Try 5 with new numbers ▶' + (ms.best != null ? " (best " + ms.best + "/5)" : "") + "</button>";
+    backToHub(ctx);
+    on("#go", "click", function () {
+      var nums = [];
+      while (nums.length < 5) { var n = rand(12, 88); if (n % 10 && ctx.m.nums.indexOf(n) < 0 && nums.indexOf(n) < 0) nums.push(n); }
+      go("to100Q", { ctx: ctx, nums: nums, i: 0, score: 0 });
+    });
+  };
+  VIEWS.to100Q = function (o) {
+    var ctx = o.ctx, n = o.nums[o.i];
+    $app.innerHTML = mTop(ctx, "Make 100 · " + (o.i + 1) + " of 5") +
+      '<div class="progressbar"><div style="width:' + (o.i / 5 * 100) + '%"></div></div>' +
+      '<div class="card center"><h2 style="margin:6px 0 14px">' + n + " + <span class=\"qbox\">?</span> = 100</h2>" +
+      '<input id="ans" class="spellinput" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="?"><div style="height:12px"></div><button class="btn block" id="ok">Check ✓</button><div id="fb"></div></div>';
+    wireBack(function () { go("hw_to100", ctx); });
+    focusSoon("#ans");
+    var check = function () {
+      var v = $("#ans").value.trim(); if (!v) return;
+      var ok = +v === 100 - n; if (ok) o.score++;
+      $("#ans").disabled = true; $("#ok").remove();
+      $("#fb").innerHTML = '<div class="feedback ' + (ok ? "good" : "bad") + '" style="text-align:left">' + (ok ? "Yes! ⭐ " : "Not quite. ") + n + " + " + (100 - n) + " = 100.<br>" + to100Explain(n) + "</div>" +
+        '<button class="btn block" id="next">' + (o.i + 1 < 5 ? "Next →" : "See my score") + "</button>";
+      on("#next", "click", function () {
+        if (o.i + 1 < 5) { o.i++; return go("to100Q", o); }
+        var ms = mState(ctx.hw.id, ctx.m.id);
+        finishMission(ctx, { score: o.score, total: 5, best: Math.max(ms.best || 0, o.score) }, o.score);
+        missionDone(ctx, '<div class="score">' + o.score + " / 5</div><p>" + (o.score >= 4 ? "You're a make-100 star! 💯" : "Good try! Use the number line on paper to help you.") + "</p>");
+      });
+    };
+    on("#ok", "click", check);
+    on("#ans", "keydown", function (e) { if (e.key === "Enter") check(); });
+  };
+
+  // ----- Venn diagram mission -----
+  var VENN = {
+    then: [["🕳️", "Lived in caves and tents"], ["🗡️", "Hunted with spears"], ["🪨", "Made tools from stone"], ["🦌", "Wore animal skins"], ["🚶", "Walked everywhere"]],
+    both: [["👨‍👩‍👧", "Live in families"], ["🍖", "Cook food"], ["🎨", "Make art and paintings"], ["🧥", "Wear clothes to keep warm"], ["🗣️", "Talk to each other"]],
+    now: [["🏠", "Live in houses"], ["🛒", "Buy food from shops"], ["🏫", "Go to school"], ["🚗", "Travel by car or bus"], ["📱", "Use phones and computers"]]
+  };
+  var VENN_NAME = { then: "Stone Age only", both: "Both", now: "Today only" };
+  function vennSvg(placed) {
+    var slots = { then: [[78, 70], [70, 108], [84, 146]], both: [[160, 82], [160, 132]], now: [[242, 70], [250, 108], [236, 146]] }, used = { then: 0, both: 0, now: 0 };
+    var marks = placed.map(function (p) { var sl = slots[p.zone][used[p.zone]++]; return sl ? '<text x="' + sl[0] + '" y="' + (sl[1] + 9) + '" text-anchor="middle" font-size="26">' + p.emoji + "</text>" : ""; }).join("");
+    return '<svg viewBox="0 0 320 210" class="venn" role="img" aria-label="Venn diagram">' +
+      '<circle cx="118" cy="108" r="88" fill="#ebe3f6" fill-opacity="0.85" stroke="#7b5ea7" stroke-width="3"/>' +
+      '<circle cx="202" cy="108" r="88" fill="#d5ecfa" fill-opacity="0.7" stroke="#4ea8de" stroke-width="3"/>' +
+      '<text x="92" y="14" text-anchor="middle" font-size="13" font-weight="800" fill="#7b5ea7">Palaeolithic times</text>' +
+      '<text x="232" y="14" text-anchor="middle" font-size="13" font-weight="800" fill="#2f7fb3">Today</text>' + marks + "</svg>";
+  }
+  VIEWS.hw_venn = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    $app.innerHTML = mTop(ctx, "Practise") +
+      '<div class="card"><p>A <b>Venn diagram</b> has two circles that overlap.</p>' +
+      '<div class="vennwrap">' + vennSvg([]) + "</div>" +
+      '<p>🟣 Things only <b>Stone Age</b> people did go in the left part.<br>🔵 Things only <b>we do today</b> go in the right part.<br>🤝 Things <b>both</b> do go in the middle, where the circles overlap.</p></div>' +
+      '<button class="btn block plum" id="go">Sort the cards game ⭕' + (ms.best != null ? " (best " + ms.best + "/9)" : "") + "</button>";
+    backToHub(ctx);
+    on("#go", "click", function () {
+      var cards = [];
+      ["then", "both", "now"].forEach(function (z) { shuffle(VENN[z]).slice(0, 3).forEach(function (c) { cards.push({ emoji: c[0], text: c[1], zone: z }); }); });
+      go("vennSort", { ctx: ctx, cards: shuffle(cards), i: 0, score: 0, placed: [] });
+    });
+  };
+  VIEWS.vennSort = function (o) {
+    var ctx = o.ctx, c = o.cards[o.i];
+    $app.innerHTML = mTop(ctx, "Sort the cards · " + (o.i + 1) + " of " + o.cards.length) +
+      '<div class="vennwrap">' + vennSvg(o.placed) + "</div>" +
+      '<div class="card center"><div style="font-size:44px">' + c.emoji + '</div><h2 style="margin:6px 0 14px">' + esc(c.text) + "</h2>" +
+      '<div class="row"><button class="btn small plum lg" data-z="then" style="flex:1">🟣 Stone Age</button><button class="btn small lg" data-z="both" style="flex:1">🤝 Both</button><button class="btn small lg" data-z="now" style="flex:1">🔵 Today</button></div><div id="fb"></div></div>';
+    wireBack(function () { go("hw_venn", ctx); });
+    $$("[data-z]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var ok = b.getAttribute("data-z") === c.zone; if (ok) o.score++;
+        $$("[data-z]").forEach(function (x) { x.disabled = true; });
+        o.placed.push(c);
+        $(".vennwrap").innerHTML = vennSvg(o.placed);
+        $("#fb").innerHTML = '<div class="feedback ' + (ok ? "good" : "bad") + '">' + (ok ? "Yes! " : "Not quite. ") + "It goes in <b>" + VENN_NAME[c.zone] + "</b>.</div>" +
+          '<button class="btn block plum" id="next">' + (o.i + 1 < o.cards.length ? "Next →" : "See my score") + "</button>";
+        on("#next", "click", function () {
+          if (o.i + 1 < o.cards.length) { o.i++; return go("vennSort", o); }
+          var ms = mState(ctx.hw.id, ctx.m.id), list = function (z) { return o.cards.filter(function (x) { return x.zone === z; }).map(function (x) { return x.emoji + " " + esc(x.text); }).join("<br>"); };
+          finishMission(ctx, { score: o.score, total: o.cards.length, best: Math.max(ms.best || 0, o.score) }, o.score);
+          missionDone(ctx, '<div class="score">' + o.score + " / " + o.cards.length + '</div><div class="vennwrap">' + vennSvg(o.placed) + "</div>" +
+            '<p style="text-align:left"><b>🟣 Stone Age only</b><br>' + list("then") + '</p><p style="text-align:left"><b>🤝 Both</b><br>' + list("both") + '</p><p style="text-align:left"><b>🔵 Today only</b><br>' + list("now") + "</p>" +
+            '<p class="muted">You can use these ideas, and add your own!</p>');
+        });
+      });
+    });
+  };
+
+  // ----- friendship poem mission -----
+  var POEMQ = [
+    { q: "Which word rhymes with <b>play</b>?", opts: ["day", "game", "fun"], a: 0 },
+    { q: "Which word rhymes with <b>care</b>?", opts: ["kind", "share", "help"], a: 1 },
+    { q: "Which word rhymes with <b>friend</b>?", opts: ["mend", "pal", "love"], a: 0 },
+    { q: "Which word rhymes with <b>smile</b>?", opts: ["happy", "laugh", "while"], a: 2 },
+    { q: "Which word rhymes with <b>kind</b>?", opts: ["nice", "mind", "good"], a: 1 },
+    { q: "Which word rhymes with <b>fun</b>?", opts: ["sun", "joy", "play"], a: 0 },
+    { q: "<b>Alliteration</b> means words start with the same sound. Which one has alliteration?", opts: ["Friendly foxes", "Happy cats", "Kind dogs"], a: 0 },
+    { q: "Which one has <b>alliteration</b>?", opts: ["Big kind bear", "Brilliant buddies", "Good little friends"], a: 1 },
+    { q: "Which one has <b>alliteration</b>?", opts: ["Sharing smiles", "Happy faces", "Playing games"], a: 0 },
+    { q: "Finish the alliteration: <b>Perfect pals …</b>", opts: ["play", "run", "laugh"], a: 0 },
+    { q: "In an <b>acrostic</b> poem, what spells the word?", opts: ["The last letter of each line", "The first letter of each line", "The title"], a: 1 },
+    { q: "What could the <b>F</b> line be in a FRIENDSHIP acrostic?", opts: ["Fun with my friends", "Happy days", "Kind words"], a: 0 }
+  ];
+  VIEWS.hw_poem = function (ctx) {
+    var ms = mState(ctx.hw.id, ctx.m.id);
+    $app.innerHTML = mTop(ctx, "Practise") +
+      '<div class="card"><h3>🔤 Acrostic poem</h3><p>The <b>first letter</b> of each line spells a word, top to bottom:</p>' +
+      '<p class="acrostic"><b>F</b>riendly words<br><b>R</b>espect others<br><b>I</b>nclude everyone<br><b>E</b>ncourage friends<br>…</p></div>' +
+      '<div class="card"><h3>🎵 Rhyme</h3><p>Rhyming words end with the same sound: <b>play</b> / <b>day</b>, <b>care</b> / <b>share</b>.</p>' +
+      '<h3>🦊 Alliteration</h3><p>Words next to each other start with the same sound: <b>f</b>riendly <b>f</b>oxes, <b>b</b>rilliant <b>b</b>uddies.</p></div>' +
+      '<button class="btn block sun" id="go">Poem power game 🎯' + (ms.best != null ? " (best " + ms.best + "/6)" : "") + "</button>";
+    backToHub(ctx);
+    on("#go", "click", function () { go("poemQ", { ctx: ctx, qs: shuffle(POEMQ.slice(0, 6)).slice(0, 3).concat(shuffle(POEMQ.slice(6)).slice(0, 3)), i: 0, score: 0 }); });
+  };
+  VIEWS.poemQ = function (o) {
+    var ctx = o.ctx, q = o.qs[o.i];
+    $app.innerHTML = mTop(ctx, "Poem power · " + (o.i + 1) + " of " + o.qs.length) +
+      '<div class="progressbar"><div style="width:' + (o.i / o.qs.length * 100) + '%"></div></div>' +
+      '<div class="card"><h2 style="margin:6px 0 14px">' + q.q + "</h2>" +
+      q.opts.map(function (t, i) { return '<button class="choice" data-i="' + i + '">' + esc(t) + "</button>"; }).join("") + '<div id="fb"></div></div>';
+    wireBack(function () { go("hw_poem", ctx); });
+    $$(".choice").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var k = +b.getAttribute("data-i"), ok = k === q.a; if (ok) o.score++;
+        $$(".choice").forEach(function (c) { c.disabled = true; if (+c.getAttribute("data-i") === q.a) c.classList.add("right"); else if (c === b) c.classList.add("wrong"); });
+        $("#fb").innerHTML = '<div class="feedback ' + (ok ? "good" : "bad") + '">' + (ok ? pick(["Yes! ⭐", "Brilliant! 🌟", "Poetry star! ✨"]) : "The answer is <b>" + esc(q.opts[q.a]) + "</b>.") + "</div>" +
+          '<button class="btn block sun" id="next">' + (o.i + 1 < o.qs.length ? "Next →" : "See my score") + "</button>";
+        on("#next", "click", function () {
+          if (o.i + 1 < o.qs.length) { o.i++; return go("poemQ", o); }
+          var ms = mState(ctx.hw.id, ctx.m.id);
+          finishMission(ctx, { score: o.score, total: o.qs.length, best: Math.max(ms.best || 0, o.score) }, o.score);
+          missionDone(ctx, '<div class="score">' + o.score + " / " + o.qs.length + "</div><p>Now write your friendship poem! Try a rhyme like <b>play / day</b> and alliteration like <b>brilliant buddies</b>. 💛</p>");
+        });
+      });
     });
   };
 
@@ -2778,6 +2940,11 @@
     return { q: "<b>" + a + " × " + b + "</b> = ?", answer: a * b, explain: tipFor(a, b), fact: [a, b] };
   } };
 
+  SKILLS.to100 = { name: "Make 100", gen: function () {
+    var n; do { n = rand(12, 88); } while (!(n % 10));
+    return { q: "<b>" + n + " + ? = 100</b>", answer: 100 - n, explain: "Jump to the next ten, then to 100:", worked: to100Explain(n) };
+  } };
+
   // ----- parent view of homework -----
   function parentHomework(p) {
     var hws = (window.HOMEWORK || []).filter(function (hw) { return !hw.done && daysUntil(hw.due) >= -21; });
@@ -2800,6 +2967,9 @@
         if (m.type === "handwriting") detail = ms.game != null ? "Letter game " + ms.game + "/8" : "";
         if (m.type === "stoneage" && ms.labelGame != null) detail = "Label game " + ms.labelGame + "/5";
         if (m.type === "commissioner") detail = (ms.plans || []).map(function (x) { return "I would " + esc(x.what) + " because " + esc(x.why) + "."; }).join("<br>") + (Object.keys(ms.talk || {}).length ? "<br>Family talk: " + Object.keys(ms.talk).length + "/3" : "");
+        if (m.type === "to100" && ms.total) detail = "Make 100 practice " + ms.score + "/" + ms.total;
+        if (m.type === "venn" && ms.total) detail = "Venn sort " + ms.score + "/" + ms.total;
+        if (m.type === "poem" && ms.total) detail = "Poem game " + ms.score + "/" + ms.total;
         if (m.type === "review" && ms.total) detail = "Maths review " + ms.score + "/" + ms.total;
         if (m.type === "discuss") detail = Object.keys(ms.talked || {}).length + "/" + m.questions.length + " talked about" +
           Object.keys(ms.notes || {}).filter(function (k) { return ms.notes[k]; }).map(function (k) { return "<br>" + (+k + 1) + ". " + esc(ms.notes[k]); }).join("");
